@@ -1,0 +1,18 @@
+{
+  "name": "neon-blackjack",
+  "version": "1.0.0",
+  "description": "Neon Blackjack Casino with Solana x402 payments and AI agents",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.87.6",
+    "@solana/spl-token": "^0.3.9",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "socket.io": "^4.7.2",
+    "axios": "^1.6.0"
+  }
+}
