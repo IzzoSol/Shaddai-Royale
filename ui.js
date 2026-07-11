@@ -447,7 +447,11 @@ function initMode() {
         // but we also provide a direct fallback here so it works immediately
         // if StoryMode is already available.
         if (typeof window.StoryMode !== 'undefined') {
-          if (!window.StoryMode.SState.get('introSeen')) {
+          if (!window.StoryMode.SState.get('startChoiceMade')) {
+            // FIX 4: loan-or-grind choice first
+            if (typeof window.NavStack !== 'undefined') window.NavStack.reset();
+            window.StoryMode.showStartChoice();
+          } else if (!window.StoryMode.SState.get('introSeen')) {
             window.StoryMode.showIntro();
           } else {
             window.StoryMode.showUnderground();
@@ -806,7 +810,21 @@ function bindTableActions() {
     'btn-hint':       () => toggleHint(),
     'btn-table-settings': () => openModal('settings'),
     'btn-table-stats': () => openModal('stats'),
-    'btn-table-back': () => { Router.go('screen-mode'); },
+    'btn-table-back': () => {
+      // FIX: use story-mode nav stack to go back one screen, not straight to main menu
+      if (typeof window.NavStack !== 'undefined') {
+        const prev = window.NavStack.pop();
+        if (prev) {
+          const goFn = window._origRouterGo || Router.go.bind(Router);
+          goFn(prev);
+          if (typeof window._refreshScreen === 'function') window._refreshScreen(prev);
+        } else {
+          Router.go('screen-mode');
+        }
+      } else {
+        Router.go('screen-mode');
+      }
+    },
     'btn-side-pp':    () => toggleSideBet('perfectPairs'),
     'btn-side-21':    () => toggleSideBet('twentyOnePlus3'),
   };

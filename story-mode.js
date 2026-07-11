@@ -41,12 +41,15 @@ const SState = (() => {
   const DEFAULTS = {
     started: false,
     introSeen: false,
+    startChoiceMade: false,     // FIX 4: whether the loan/grind choice has been presented
+    startChoice: null,          // 'loan' | 'grind'
     lore: 0,
     inviteSeen: false,
     circuitUnlocked: false,
     beatCities: [],              // city ids beaten
     currentVenueId: null,
     currentCityId: null,
+    tableWinnings: 0,           // net chips won AT this city's table (resets on city entry)
     selectedCompanionId: null,
     drinksDizzy: 0,              // 0–5 scale
     messageThreads: {},          // { contactId: [{from,text,ts}] }
@@ -89,6 +92,89 @@ const SState = (() => {
   load();
   return { get, set, save };
 })();
+
+// ── Navigation history stack ─────────────────────────────────
+// Allows Back to go one screen back instead of jumping to the main menu.
+// The stack is in-memory (intentionally not persisted — on hard reload it
+// resets gracefully to the mode-select screen which is perfectly correct).
+const NavStack = (() => {
+  const _stack = [];
+
+  function push(screenId) {
+    // Don't duplicate consecutive identical entries
+    if (_stack.length && _stack[_stack.length - 1] === screenId) return;
+    _stack.push(screenId);
+  }
+
+  // Pop the top (current) screen and return the previous one, or null if at root.
+  function pop() {
+    if (_stack.length > 1) {
+      _stack.pop(); // discard current
+      return _stack[_stack.length - 1];
+    }
+    return null; // at root — caller should go to mode select
+  }
+
+  function peek() {
+    return _stack.length ? _stack[_stack.length - 1] : null;
+  }
+
+  function reset() { _stack.length = 0; }
+
+  return { push, pop, peek, reset };
+})();
+
+// Wrap Router.go so every navigation is tracked automatically
+const _origRouterGo = Router.go.bind(Router);
+Router.go = function(id) {
+  NavStack.push(id);
+  _origRouterGo(id);
+};
+
+// Common "go back one screen" helper — used by all back-buttons in story mode
+function goBack(fallbackScreen) {
+  const prev = NavStack.pop();
+  if (prev) {
+    _origRouterGo(prev);  // use original to avoid double-pushing
+    // Re-render the screen we popped back to
+    _refreshScreen(prev);
+  } else {
+    // At root — go to mode select (or explicit fallback)
+    _origRouterGo(fallbackScreen || 'screen-mode');
+  }
+}
+
+function _refreshScreen(screenId) {
+  // Re-render screen content WITHOUT pushing to nav stack or calling Router.go again.
+  // We call the internal render helpers directly to avoid double-push.
+  switch (screenId) {
+    case 'screen-underground':
+      renderLoreBar(); checkInviteUnlock(); renderVenueCards(); renderCompanionBtn(); renderDrinksBar(false);
+      {
+        const cb = document.getElementById('btn-open-circuit');
+        if (cb) cb.style.display = SState.get('circuitUnlocked') ? 'flex' : 'none';
+        const pb = document.getElementById('btn-open-phone');
+        if (pb) pb.onclick = () => showPhone();
+        const cpb = document.getElementById('btn-pick-companion');
+        if (cpb) cpb.onclick = () => showCompanionPicker();
+        if (cb) cb.onclick = () => showCircuit();
+        const bb = document.getElementById('btn-underground-back');
+        if (bb) bb.onclick = () => goBack('screen-mode');
+      }
+      break;
+    case 'screen-circuit':
+      renderCircuitLore(); renderCircuitMap();
+      {
+        const bb = document.getElementById('btn-circuit-back');
+        if (bb) bb.onclick = () => goBack('screen-underground');
+        const pb = document.getElementById('btn-circuit-phone');
+        if (pb) pb.onclick = () => showPhone();
+      }
+      break;
+    // phone / companion / cutscene / table: no special re-render needed when popping back
+    default: break;
+  }
+}
 
 // ── Utility ──────────────────────────────────────────────────
 const smWait = ms => new Promise(r => setTimeout(r, ms));
@@ -777,6 +863,101 @@ function showInviteSequence() {
 }
 
 // ══════════════════════════════════════════════════
+// FIX 4: START CHOICE — Loan or Grind
+// ══════════════════════════════════════════════════
+
+function showStartChoice() {
+  // If already chosen this run, skip straight to intro
+  if (SState.get('startChoiceMade')) { showIntro(); return; }
+  Router.go('screen-start-choice');
+  _renderStartChoice();
+}
+
+function _renderStartChoice() {
+  const ft = fatTonyData();
+  const ftName = ft.name || 'Fat Tony';
+  const ftImg = 'assets/companions/fattony.png';
+  const greetLine = pick(ft.greet || ["You look like you need a hand, kid."]);
+  const loanAmounts = [500, 1000, 2500];
+
+  const container = document.getElementById('start-choice-body');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="sc-header">
+      <div class="sc-eyebrow">Before You Begin</div>
+      <h2 class="sc-title">How Do You Start?</h2>
+      <p class="sc-sub">Choose your path. Both lead to the same table — but one costs more.</p>
+    </div>
+
+    <div class="sc-options">
+      <!-- Option A: Fat Tony Loan -->
+      <div class="sc-option sc-option-loan" id="sc-opt-loan">
+        <div class="sc-option-portrait">
+          <img src="${ftImg}" alt="${ftName}"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <span class="sc-option-portrait-fallback">$</span>
+        </div>
+        <div class="sc-option-content">
+          <div class="sc-option-tag sc-tag-danger">Fat Tony's Offer</div>
+          <div class="sc-option-title">${ftName}</div>
+          <div class="sc-option-quote">"${greetLine}"</div>
+          <div class="sc-option-desc">Start with borrowed capital. Hit the ground running — but the debt runs with you.</div>
+          <div class="sc-loan-btns" id="sc-loan-btns">
+            ${loanAmounts.map(n => `
+              <button class="sc-loan-btn" onclick="window._startWithLoan(${n})">
+                Borrow <strong>$${n >= 1000 ? (n/1000) + 'K' : n}</strong>
+                <span class="sc-loan-interest">${Math.round((ft.taxRate||0.25)*100)}%/city interest</span>
+              </button>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Option B: Grind from bottom -->
+      <div class="sc-option sc-option-grind" id="sc-opt-grind" onclick="window._startGrind()">
+        <div class="sc-option-portrait sc-portrait-hustle">
+          <span style="font-size:2rem">🤜</span>
+        </div>
+        <div class="sc-option-content">
+          <div class="sc-option-tag sc-tag-grind">Pure Hustle</div>
+          <div class="sc-option-title">Grind From Zero</div>
+          <div class="sc-option-quote">"Nobody handed me anything."</div>
+          <div class="sc-option-desc">Start with $${smFmt(250)} and build every chip yourself. No debt. No shortcuts. Full respect.</div>
+          <div class="sc-grind-cta">Start with $250 →</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window._startWithLoan = function(amount) {
+  const ft = fatTonyData();
+  const taxRate = ft.taxRate || 0.25;
+  // Give loan money
+  if (typeof State !== 'undefined') State.set('bankroll', (State.get('bankroll') || 0) + amount);
+  // Set up debt
+  SState.set('debt', amount);
+  SState.set('loanActive', true);
+  SState.set('citiesSinceLoan', 0);
+  SState.set('startChoiceMade', true);
+  SState.set('startChoice', 'loan');
+  earnLore(2, 'Tony\'s money — street cred');
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+  if (typeof updateTonyHud !== 'undefined') updateTonyHud();
+  showLoreToast(ft.name + ' fronted you $' + amount.toLocaleString() + ' — repay via Phone → Bank');
+  showIntro();
+};
+
+window._startGrind = function() {
+  if (typeof State !== 'undefined') State.set('bankroll', 250);
+  SState.set('startChoiceMade', true);
+  SState.set('startChoice', 'grind');
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+  showLoreToast('No loans. No shortcuts. Just you.');
+  showIntro();
+};
+
+// ══════════════════════════════════════════════════
 // SCREEN: INTRO CINEMATIC
 // ══════════════════════════════════════════════════
 
@@ -854,9 +1035,7 @@ function showUnderground() {
   document.getElementById('btn-open-phone').onclick = () => showPhone();
   document.getElementById('btn-pick-companion').onclick = () => showCompanionPicker();
   if (circBtn) circBtn.onclick = () => showCircuit();
-  document.getElementById('btn-underground-back').onclick = () => {
-    if (typeof Router !== 'undefined') Router.go('screen-mode');
-  };
+  document.getElementById('btn-underground-back').onclick = () => goBack('screen-mode');
 }
 
 function renderVenueCards() {
@@ -1053,7 +1232,7 @@ function showCircuit() {
   renderCircuitLore();
   renderCircuitMap();
 
-  document.getElementById('btn-circuit-back').onclick = () => showUnderground();
+  document.getElementById('btn-circuit-back').onclick = () => goBack('screen-underground');
   document.getElementById('btn-circuit-phone').onclick = () => showPhone();
 }
 
@@ -1121,6 +1300,7 @@ function enterCity(city) {
   SState.set('currentVenueId', null);
   SState.set('handsThisVenue', 0);
   SState.set('companionLeft', false);
+  SState.set('tableWinnings', 0);  // FIX: reset table-winnings counter on city entry
   // PHASE-3: Fat Tony anger accrual on city entry
   onCityEnterTonyCheck(city.id);
 
@@ -1247,10 +1427,8 @@ function showPhone(returnScreen) {
   switchPhoneTab('contacts');
 
   document.getElementById('btn-close-phone').onclick = () => {
-    Router.go(_phoneReturnScreen);
-    // Refresh whatever screen we came from
-    if (_phoneReturnScreen === 'screen-underground') renderLoreBar();
-    if (_phoneReturnScreen === 'screen-circuit') renderCircuitLore();
+    // Use nav stack: pop phone, go back to wherever we were
+    goBack(_phoneReturnScreen);
   };
 }
 
@@ -1726,11 +1904,10 @@ function showCompanionPicker(returnFn) {
   Router.go('screen-companion');
   renderCompanionGrid();
 
-  document.getElementById('btn-companion-back').onclick = () => { Router.go('screen-underground'); showUnderground(); };
+  document.getElementById('btn-companion-back').onclick = () => goBack('screen-underground');
   document.getElementById('btn-companion-solo').onclick = () => {
     SState.set('selectedCompanionId', null);
-    Router.go('screen-underground');
-    showUnderground();
+    goBack('screen-underground');
   };
 }
 
@@ -1932,18 +2109,22 @@ let _dialogHideTimer = null;
 function applyDialogPosition(pos, isOff) {
   const bubble = document.getElementById('story-dialog-bubble');
   if (!bubble) return;
-  if (isOff) { bubble.dataset.bubbleOff = 'true'; return; }
-  bubble.dataset.bubbleOff = 'false';
-  // Reset all positional insets
-  bubble.style.top = '';
-  bubble.style.bottom = '';
-  bubble.style.left = '';
-  bubble.style.right = '';
-  bubble.style.transform = '';
+
+  // FIX: store off-state as data attribute; actual hiding/showing is handled by showDialogBubble
+  bubble.dataset.bubbleOff = isOff ? 'true' : 'false';
+  if (isOff) return;
+
+  // FIX: always reset ALL positional properties with explicit values (not empty strings)
+  // so CSS defaults cannot bleed back in
+  bubble.style.top = 'auto';
+  bubble.style.bottom = 'auto';
+  bubble.style.left = 'auto';
+  bubble.style.right = 'auto';
+  bubble.style.transform = 'none';   // critical: kills the CSS translateX(-50%)
 
   const p = pos || 'bottom-center';
-  if (p === 'top-left')      { bubble.style.top = '4.5rem'; bubble.style.left = '0.8rem'; }
-  else if (p === 'top-right'){ bubble.style.top = '4.5rem'; bubble.style.right = '0.8rem'; }
+  if (p === 'top-left')         { bubble.style.top = '4.5rem';  bubble.style.left = '0.8rem'; }
+  else if (p === 'top-right')   { bubble.style.top = '4.5rem';  bubble.style.right = '0.8rem'; }
   else if (p === 'bottom-left') { bubble.style.bottom = '9rem'; bubble.style.left = '0.8rem'; }
   else if (p === 'bottom-right'){ bubble.style.bottom = '9rem'; bubble.style.right = '0.8rem'; }
   else {
@@ -2014,6 +2195,13 @@ function onRoundEnd(outcome, payout, bet) {
   SState.set('handsThisVenue', handsThisVenue);
 
   if (outcome === 'win' || outcome === 'bj') {
+    // FIX: accumulate net table winnings (profit from this hand only)
+    // payout for a win is bet*2; net profit = payout - bet = bet (or 1.5x for BJ)
+    const netProfit = payout - (bet || 0);
+    if (netProfit > 0 && SState.get('currentCityId')) {
+      SState.set('tableWinnings', (SState.get('tableWinnings') || 0) + netProfit);
+    }
+
     // Lore from win
     earnLore(1, 'win');
     // PHASE-3: if companion with us, track cassidy lore
@@ -2043,12 +2231,16 @@ function onRoundEnd(outcome, payout, bet) {
     }
 
     // Check circuit city victory condition
-    checkCityVictory(payout);
+    checkCityVictory();
 
     // Check underground venue session end
     checkVenueSessionEnd(outcome);
 
   } else if (outcome === 'lose') {
+    // FIX: losses reduce tableWinnings counter (net tracking)
+    if (SState.get('currentCityId')) {
+      SState.set('tableWinnings', (SState.get('tableWinnings') || 0) - (bet || 0));
+    }
     SState.set('handStreak', 0);
     if (payout === 0 && bet >= 200) {
       const cityId = SState.get('currentCityId');
@@ -2116,14 +2308,25 @@ function checkVenueSessionEnd(outcome) {
   }
 }
 
-function checkCityVictory(payout) {
+function checkCityVictory() {
   const cityId = SState.get('currentCityId');
   if (!cityId) return;
   const city = getCity(cityId);
   if (!city) return;
 
-  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
-  if (bankroll >= city.chipTarget) {
+  const tableWinnings = SState.get('tableWinnings') || 0;
+  const target = city.chipTarget || 0;
+
+  // FIX: city is beaten only when net chips WON AT THIS TABLE >= chipTarget
+  // Show progress toward target in the hint bar
+  if (typeof setHint !== 'undefined' && target > 0) {
+    const pct = Math.max(0, Math.min(100, Math.round((tableWinnings / target) * 100)));
+    const wonStr = tableWinnings < 0 ? '-$' + smFmt(-tableWinnings) : '$' + smFmt(tableWinnings);
+    setHint(`Table won: <strong style="color:${tableWinnings >= target ? '#4ade80' : 'var(--gold)'}">
+      ${wonStr} / $${smFmt(target)}</strong> (${pct}%)`);
+  }
+
+  if (tableWinnings >= target) {
     const beaten = SState.get('beatCities') || [];
     if (!beaten.includes(cityId)) {
       beaten.push(cityId);
@@ -2134,6 +2337,7 @@ function checkCityVictory(payout) {
         showCutscene('victory', city, () => {
           _currentCity = null;
           SState.set('currentCityId', null);
+          SState.set('tableWinnings', 0);
           showCircuit();
         });
       }, 1500);
@@ -2159,7 +2363,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof window.Audio_SR !== 'undefined') window.Audio_SR.chip();
         if (typeof State !== 'undefined') State.set('mode', 'story');
 
-        if (!SState.get('introSeen')) {
+        if (!SState.get('startChoiceMade')) {
+          // FIX 4: present loan-or-grind choice before intro
+          NavStack.reset();
+          showStartChoice();
+        } else if (!SState.get('introSeen')) {
           showIntro();
         } else {
           showUnderground();
@@ -2186,6 +2394,7 @@ window.StoryMode = {
   showUnderground,
   showCircuit,
   showIntro,
+  showStartChoice,
   showPhone,
   earnLore,
   SState,
@@ -2198,3 +2407,8 @@ window.StoryMode = {
   updateTonyHud,
   getDialogLine,
 };
+
+// Expose nav helpers so ui.js btn-table-back can use the same stack
+window.NavStack = NavStack;
+window._origRouterGo = _origRouterGo;
+window._refreshScreen = _refreshScreen;

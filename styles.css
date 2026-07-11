@@ -3269,3 +3269,88 @@ body::after {
   .dealer-avatar { width: 2.4rem; height: 2.4rem; }
   .agent-grid { grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 }
+
+/* ── START CHOICE SCREEN (Loan or Grind) ────────────────────── */
+.sc-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background: radial-gradient(ellipse at 30% 60%, #1a0500 0%, #08020a 50%, #020108 100%);
+}
+.sc-header { text-align: center; margin-bottom: 1.5rem; padding-top: 0.5rem; }
+.sc-eyebrow {
+  font-family: 'Cinzel', serif; font-size: 0.48rem; letter-spacing: 0.3em;
+  color: var(--gold-dim); text-transform: uppercase; margin-bottom: 0.4rem;
+}
+.sc-title {
+  font-family: 'Cinzel Decorative', serif; font-size: 1.25rem;
+  color: var(--white); margin: 0 0 0.4rem;
+  text-shadow: 0 0 20px rgba(201,168,76,0.35);
+}
+.sc-sub {
+  font-family: 'Cormorant Garamond', serif; font-style: italic;
+  font-size: 0.8rem; color: rgba(245,240,232,0.45); margin: 0;
+}
+.sc-options { display: flex; flex-direction: column; gap: 1rem; }
+.sc-option {
+  display: flex; gap: 0.9rem; align-items: flex-start;
+  background: rgba(4,6,16,0.85); border-radius: 4px;
+  border: 1px solid rgba(201,168,76,0.15);
+  padding: 1rem 1rem 1rem 0.8rem;
+  backdrop-filter: blur(4px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.sc-option-loan { border-color: rgba(224,48,64,0.3); }
+.sc-option-loan:hover { border-color: rgba(224,48,64,0.6); box-shadow: 0 0 18px rgba(224,48,64,0.12); }
+.sc-option-grind { cursor: pointer; }
+.sc-option-grind:hover { border-color: rgba(201,168,76,0.45); box-shadow: 0 0 18px rgba(201,168,76,0.12); }
+.sc-option-portrait {
+  width: 4rem; height: 5rem; border-radius: 4px; overflow: hidden; flex-shrink: 0;
+  border: 1px solid rgba(224,48,64,0.3); background: #0a0408;
+  display: flex; align-items: center; justify-content: center;
+}
+.sc-option-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.sc-option-portrait-fallback {
+  display: none; width: 100%; height: 100%; align-items: center; justify-content: center;
+  font-family: 'Cinzel Decorative', serif; font-size: 1.6rem; color: #e03040;
+}
+.sc-portrait-hustle { border-color: rgba(201,168,76,0.25); background: rgba(20,14,4,0.8); }
+.sc-option-content { flex: 1; min-width: 0; }
+.sc-option-tag {
+  font-family: 'Cinzel', serif; font-size: 0.38rem; letter-spacing: 0.2em;
+  text-transform: uppercase; padding: 0.12rem 0.4rem; border-radius: 2px; display: inline-block;
+  margin-bottom: 0.35rem;
+}
+.sc-tag-danger { color: #e03040; background: rgba(224,48,64,0.1); border: 1px solid rgba(224,48,64,0.3); }
+.sc-tag-grind  { color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.3); }
+.sc-option-title {
+  font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.06em;
+  color: var(--white); margin-bottom: 0.2rem;
+}
+.sc-option-quote {
+  font-family: 'Cormorant Garamond', serif; font-style: italic;
+  font-size: 0.72rem; color: rgba(245,240,232,0.55); margin-bottom: 0.4rem; line-height: 1.4;
+}
+.sc-option-desc {
+  font-family: 'Cormorant Garamond', serif; font-size: 0.7rem;
+  color: rgba(245,240,232,0.35); line-height: 1.45; margin-bottom: 0.6rem;
+}
+.sc-loan-btns { display: flex; flex-direction: column; gap: 0.35rem; }
+.sc-loan-btn {
+  font-family: 'Cinzel', serif; font-size: 0.5rem; letter-spacing: 0.08em;
+  text-transform: uppercase; text-align: left;
+  padding: 0.45rem 0.65rem; border-radius: 2px; cursor: pointer;
+  color: var(--white); border: 1px solid rgba(224,48,64,0.35);
+  background: rgba(224,48,64,0.08);
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.18s, border-color 0.18s;
+}
+.sc-loan-btn:hover { background: rgba(224,48,64,0.18); border-color: rgba(224,48,64,0.6); }
+.sc-loan-btn strong { color: #e03040; font-size: 0.62rem; }
+.sc-loan-interest { font-family: 'Share Tech Mono', monospace; font-size: 0.42rem; color: rgba(224,48,64,0.55); }
+.sc-grind-cta {
+  font-family: 'Cinzel', serif; font-size: 0.52rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--gold); margin-top: 0.3rem;
+  padding: 0.4rem 0.6rem; border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 2px; display: inline-block; background: rgba(201,168,76,0.06);
+  transition: background 0.18s;
+}
+.sc-option-grind:hover .sc-grind-cta { background: rgba(201,168,76,0.14); }
