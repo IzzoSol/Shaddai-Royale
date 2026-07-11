@@ -2524,42 +2524,45 @@ body::after {
 
 .phone-shell {
   width: min(340px, 92vw);
-  background: linear-gradient(160deg, #1a1a2a, #0d0d18);
-  border-radius: 16px 16px 8px 8px;
-  border: 2px solid rgba(0,229,255,0.2);
+  background: linear-gradient(160deg, #12121f, #08080f);
+  border-radius: 38px;
+  padding: 8px;
+  border: 2px solid rgba(0,229,255,0.22);
   box-shadow:
-    0 40px 80px rgba(0,0,0,0.8),
+    0 40px 90px rgba(0,0,0,0.85),
     0 0 0 1px rgba(255,255,255,0.04),
+    0 0 40px rgba(0,229,255,0.08),
     inset 0 1px 0 rgba(255,255,255,0.06);
   overflow: hidden;
 }
 
-.phone-hinge {
+.phone-island {
+  position: absolute;
+  top: 14px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: 92px; height: 20px;
+  border-radius: 12px;
+  background: #000;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.8rem;
-  padding: 0.5rem;
-  background: linear-gradient(180deg, #0d0d18, #0a0a14);
-  border-bottom: 1px solid rgba(0,229,255,0.08);
+  justify-content: flex-end;
+  padding-right: 10px;
 }
-
-.phone-speaker {
-  width: 60px; height: 5px;
-  background: rgba(0,229,255,0.12);
-  border-radius: 3px;
-}
-.phone-camera {
+.phone-island-cam {
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: rgba(0,229,255,0.15);
-  border: 1px solid rgba(0,229,255,0.2);
+  background: radial-gradient(circle at 35% 35%, rgba(0,229,255,0.6), #04121a 70%);
+  border: 1px solid rgba(0,229,255,0.3);
 }
 
 .phone-screen {
-  background: #0a0c18;
-  min-height: 280px;
-  border-bottom: 2px solid rgba(0,229,255,0.15);
+  position: relative;
+  background: radial-gradient(ellipse at 50% 0%, #0d1428 0%, #0a0c18 55%, #06070f 100%);
+  min-height: 500px;
+  border-radius: 30px;
+  padding-top: 40px;
+  overflow: hidden;
 }
 
 .phone-status-bar {
@@ -2613,8 +2616,9 @@ body::after {
 
 .phone-content {
   overflow-y: auto;
-  max-height: 260px;
-  padding: 0.4rem;
+  min-height: 360px;
+  max-height: 420px;
+  padding: 0.5rem 0.6rem;
 }
 
 .phone-section-title {
@@ -2787,73 +2791,36 @@ body::after {
 .phone-preset-btn:hover { color: var(--cyan); border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.06); }
 
 /* Keyboard */
-.phone-keyboard {
-  padding: 0.8rem 0.6rem;
-  background: linear-gradient(180deg, #0d0d18, #0a0a14);
-}
-
-.phone-dpad {
+.phone-homebar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 0.6rem;
-  gap: 0.1rem;
-}
-.dpad-up, .dpad-down {
-  font-size: 0.6rem; color: rgba(0,229,255,0.3);
-  cursor: pointer; padding: 0.2rem;
-  user-select: none;
-}
-.dpad-row { display: flex; align-items: center; gap: 0.3rem; }
-.dpad-left, .dpad-right { font-size: 0.6rem; color: rgba(0,229,255,0.3); padding: 0.2rem; cursor: pointer; user-select: none; }
-.dpad-center {
-  width: 2rem; height: 2rem;
-  border-radius: 50%;
-  background: rgba(0,229,255,0.06);
-  border: 1px solid rgba(0,229,255,0.15);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Cinzel', serif;
-  font-size: 0.45rem;
-  letter-spacing: 0.1em;
-  color: rgba(0,229,255,0.4);
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem 0.35rem;
+  background: radial-gradient(ellipse at 50% 100%, #0d1428 0%, #08080f 80%);
 }
 
-.phone-keys {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.3rem;
-  margin-bottom: 0.6rem;
-}
-
-.phone-key {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+.phone-home-indicator {
+  width: 110px; height: 4px;
   border-radius: 3px;
-  padding: 0.35rem;
-  text-align: center;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.65rem;
-  color: rgba(245,240,232,0.3);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.1s;
+  background: rgba(245,240,232,0.35);
 }
-.phone-key:active { background: rgba(255,255,255,0.08); }
 
 .phone-close-btn {
   width: 100%;
   font-family: 'Cinzel', serif;
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--cyan);
-  border: 1px solid rgba(0,229,255,0.2);
-  padding: 0.4rem;
-  border-radius: 2px;
-  background: rgba(0,229,255,0.04);
+  border: 1px solid rgba(0,229,255,0.25);
+  padding: 0.55rem;
+  border-radius: 14px;
+  background: rgba(0,229,255,0.06);
+  cursor: pointer;
   transition: all 0.2s;
 }
-.phone-close-btn:hover { background: rgba(0,229,255,0.1); }
+.phone-close-btn:hover { background: rgba(0,229,255,0.12); border-color: rgba(0,229,255,0.5); }
 
 /* ══════════════════════════════════════════════════════════
    COMPANION PICKER
