@@ -701,6 +701,11 @@ function initTable() {
   setHint('Place your bet to begin.');
   resetActionBar(false);
 
+  // PHASE-3: refresh Fat Tony HUD whenever table loads
+  if (typeof window.StoryMode !== 'undefined' && typeof window.StoryMode.updateTonyHud === 'function') {
+    window.StoryMode.updateTonyHud();
+  }
+
   // P1 FIX: Ensure hint button starts in OFF state visually
   const hintBtn = document.getElementById('btn-hint');
   if (hintBtn) {
@@ -895,8 +900,14 @@ async function onDeal() {
   const bankroll = State.get('bankroll');
 
   if (bet > bankroll) {
-    openModal('chips');
-    setHint('Insufficient funds — add chips to continue.');
+    // PHASE-3: offer Fat Tony loan in story mode before standard chips modal
+    if (State.get('mode') === 'story' && typeof window.StoryMode !== 'undefined' && typeof window.StoryMode.showFatTonyModal === 'function') {
+      window.StoryMode.showFatTonyModal();
+      setHint('Short on funds — consider Fat Tony\'s offer.');
+    } else {
+      openModal('chips');
+      setHint('Insufficient funds — add chips to continue.');
+    }
     return;
   }
 
@@ -1316,7 +1327,13 @@ async function endRound(outcome, payout, label) {
   }
 
   // Low bankroll warning
-  if (State.get('bankroll') < 10) openModal('chips');
+  if (State.get('bankroll') < 10) {
+    if (State.get('mode') === 'story' && typeof window.StoryMode !== 'undefined' && typeof window.StoryMode.showFatTonyModal === 'function') {
+      setTimeout(() => window.StoryMode.showFatTonyModal(), 800);
+    } else {
+      openModal('chips');
+    }
+  }
 }
 
 function resolveSideBets(mainPayout) {

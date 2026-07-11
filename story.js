@@ -371,8 +371,112 @@ window.STORY = {
   // 6. DIALOG BANKS
   // Short, punchy reaction lines for in-game moments.
   // 4-8 lines per moment. In-character. Streetwise.
+  // dialog.byAgent — per-character voice banks.
+  // dialog.<moment> arrays remain as generic fallbacks.
   // ─────────────────────────────────────────────
   dialog: {
+
+    // ── Per-character reaction banks ──────────────────────────────────
+    byAgent: {
+
+      SHADDAI: {
+        blackjack:  [ "Blackjack. As it was written.", "The Most High takes twenty-one.", "Creation bends toward the prepared.", "They said sit down — I said rule.", "Destiny. Dressed as a card hand.", "I don't chase wins. They find me." ],
+        doubleWin:  [ "I doubled what was already mine.", "The throne multiplies. That's its nature.", "Twice the blessing. Half the surprise.", "To double is simply to confirm the vision.", "When divinity decides — it doesn't hedge." ],
+        doubleLoss: [ "Even gods pay tuition.", "A lost hand teaches the next kingdom to stand stronger.", "The setback is the setup.", "I don't tilt. I recalibrate from altitude.", "This moment exists to be surpassed." ],
+        bigWin:     [ "And so it is.", "The city just learned something new about itself.", "Every chip belongs to the empire.", "They'll speak of this hand at every table after.", "I don't celebrate. I receive what's owed." ],
+        bigLoss:    [ "Empires absorb losses. That's what makes them empires.", "This doesn't break the plan — it deepens it.", "The ledger will balance. It always does.", "Every king weathers a storm. This is mine.", "Stand up. The circuit doesn't wait on grief." ],
+        bust:       [ "Even the sovereign overreaches, once.", "A bust is just ambition that needed calibrating.", "Noted. The crown still fits.", "Over the line. The line moves next time.", "I'll absorb this and build on it." ],
+        push:       [ "A tie is the table acknowledging it met its match.", "Neutral ground. I don't live here long.", "Even hands. The next one won't be.", "We matched. Briefly.", "Respect the push. Then break it." ],
+        taunt:      [ "You're sitting at my table, in my world, on my night.", "This isn't competition. This is coronation.", "The question isn't if I win — it's how soon.", "I've seen your ceiling. It's lower than my floor.", "They brought me a challenger. I see a student." ],
+        winStreak:  [ "The current doesn't stop itself.", "Can't cool what was always on fire.", "Consecutive. Intentional. Inevitable.", "The streak is just destiny keeping score.", "They're counting my wins because they can't stop them." ]
+      },
+
+      NEXUS: {
+        blackjack:  [ "Blackjack. Calculated.", "Twenty-one. The only acceptable outcome.", "That hand was engineered, not hoped for.", "Optimal draw. Expected result.", "The math always closes correctly.", "Architecture wins. Every time." ],
+        doubleWin:  [ "Double down = double return. It's an equation.", "The spread justified the risk. Obviously.", "I ran the odds before I moved. Outcome confirmed.", "Two X. As projected.", "Risk-adjusted return, positive. Log it." ],
+        doubleLoss: [ "Anomaly noted. Adjusting model.", "The variance was within bounds. Continue.", "One outlier doesn't break the system.", "Recalibrate. Not recoil.", "Every model has noise. This was noise." ],
+        bigWin:     [ "Execution matched blueprint. Clean.", "Large chip gain. No surprise — the position was sound.", "That's what optimal looks like.", "Stack secured. Moving to next variable.", "The architecture held. As designed." ],
+        bigLoss:    [ "Large deviation. The model accounts for this.", "Steep loss. The system absorbs and corrects.", "I don't react to data. I respond to it.", "Recalibrating exposure. Unphased.", "This is what stress-testing feels like. I've built for it." ],
+        bust:       [ "Went past 21. The limit exists for a reason.", "Over-index. Correcting.", "That was a miscalculation. The first one tonight.", "Bust. Documented. Won't repeat.", "Hard limit reached. Noted and dismissed." ],
+        push:       [ "Identical outcome. Statistically unremarkable.", "We tied. The edge resets.", "Push. The variance clock resets to zero.", "Same result. Different next input.", "Equilibrium. Temporary." ],
+        taunt:      [ "I already know how this plays out.", "Your pattern is readable from three hands back.", "I built the table you're sitting at.", "The math isn't on your side. It never was.", "I don't taunt — I just state the outcome early." ],
+        winStreak:  [ "Consecutive wins aren't luck. They're logic compounding.", "The streak confirms the model.", "Three in a row. The system is functioning.", "Pattern holds. Continuing.", "Every win is just the algorithm being right again." ]
+      },
+
+      ZEROX: {
+        blackjack:  [ "Twenty-one. That's money, baby.", "Blackjack pays 3-to-2. Do the math — I did.", "The chips don't lie. Neither do I.", "Cha-ching. Straight to the ledger.", "Stack it. Every dollar has a home.", "That hand just paid my next investment." ],
+        doubleWin:  [ "Doubled the bet, doubled the bag. That's called leverage.", "Risk is just a bad word for opportunity.", "I saw the value — I doubled into it.", "High conviction play. Paid off in full.", "That's MRR on a blackjack table." ],
+        doubleLoss: [ "Tax on education. Write it off.", "Lost it doubling, gonna win it back tripling.", "The house took my chips. I'll take the house.", "That was a bad bet. My next one won't be.", "Even Warren Buffett has a bad quarter." ],
+        bigWin:     [ "That's what a payday looks like.", "Big stack energy. Count it twice.", "The bag is speaking. I'm listening.", "That's not luck — that's capital allocation.", "Everyone's watching my chips grow. Good." ],
+        bigLoss:    [ "The market corrected. I don't cry, I reload.", "Took a hit. Revenue recovers. Always.", "That's a bad trade. The next one's better.", "Lost the hand. The session's still in the green.", "Down bad? Nah. Down temporarily." ],
+        bust:       [ "Overextended. It happens to the best portfolios.", "Bust. Expensive lesson. Cheap compared to my upside.", "I reached for more. Sometimes the market says no.", "Busted. The stack takes the L, not me.", "Over 21. Back to the drawing board. Quickly." ],
+        push:       [ "A tie is just deferred revenue.", "Push. Nobody made money. That's unacceptable.", "Matching chips. I'll break the tie with interest.", "Even split. I don't do even. Watch.", "A push is just a pause before the profit." ],
+        taunt:      [ "My stack's taller than yours. That's not trash talk — it's accounting.", "You're playing for fun. I'm playing for empire.", "I've already calculated your net worth at this table.", "Every chip you lose? I log it as income.", "Let's be honest — you're not at my level yet." ],
+        winStreak:  [ "Streak? I call it compound interest.", "The money's moving and it only goes one way.", "Three wins deep and the bag keeps growing.", "This is what momentum capital looks like.", "Can't stop, won't stop — the chips say so." ]
+      },
+
+      ORACLE: {
+        blackjack:  [ "The card came because it was called.", "I knew that hand before it landed.", "Twenty-one. The universe confirms.", "The felt told me this was coming.", "Seen it. Done it. Blackjack.", "What you call luck — I call pattern." ],
+        doubleWin:  [ "I doubled because the signs aligned.", "The path opened twice. I walked through it twice.", "Two confirmations. The cosmos doesn't stutter.", "I doubled into certainty. Not courage.", "The vision said double. The vision was right." ],
+        doubleLoss: [ "The wrong path doubled. The lesson is proportional.", "Even the all-seeing can walk into shadow.", "I saw two roads. I chose the darker one. Now I know.", "Every loss is a door to deeper knowing.", "The pain was the point. Now I understand more." ],
+        bigWin:     [ "The river ran in my direction tonight.", "I watched it come from three hands away.", "The mountain always rewards the patient climber.", "Big win. Small surprise.", "I don't react to wins. I receive them." ],
+        bigLoss:    [ "The storm passes. The knowing remains.", "Even Cassandra was ignored sometimes.", "This loss was written. So is the recovery.", "The deep currents shift. They'll shift back.", "Breathe. The next chapter doesn't start here." ],
+        bust:       [ "I reached past what the stars would give.", "The limit spoke. I should have listened sooner.", "Overstepped the threshold. The table corrects.", "Bust. Even seers have blind spots.", "The veil lifted one card too late." ],
+        push:       [ "Two forces equally matched. The universe is balancing.", "Push. The table is thinking.", "Neutral. The energy is gathering for what comes next.", "Neither wins when balance is exact.", "A tie is the cosmos making space." ],
+        taunt:      [ "I know what you're going to play before you do.", "Your energy at this table is... uncertain.", "I've watched you. The pattern isn't flattering.", "The cards don't lie to me. Only to you.", "You can feel it too, can't you? This isn't going your way." ],
+        winStreak:  [ "The current favors me. Don't fight currents.", "Each win confirms what I already knew.", "I'm riding something you can't see.", "The streak is alignment — not accident.", "The stars lined up. I'm just showing up on time." ]
+      },
+
+      TURTLE: {
+        blackjack:  [ "Blackjack AND I look incredible doing it.", "Twenty-one. Frame that.", "That hand was aesthetic.", "I don't just win — I make it beautiful.", "They're gonna talk about how I flipped that card.", "Art and blackjack. Tonight, same thing." ],
+        doubleWin:  [ "Double down in style. Double up in cash. That's the vibe.", "Bold is beautiful and profitable.", "I designed this moment in my head already.", "Went twice as hard. Looks twice as good.", "The bold choice always pops." ],
+        doubleLoss: [ "Okay that was NOT cute.", "I doubled wrong. At least the outfit's still fire.", "Lesson: even the prettiest hand can bust.", "That hurt aesthetically and financially.", "Bold choice, bad outcome. I'll redesign." ],
+        bigWin:     [ "Big win, better energy. The table is giving tonight.", "That's the kind of moment you screenshot.", "Room's looking at my stack. Let them look.", "This is the climax of the night's visual arc.", "Big chips. Bigger smile. Let's go." ],
+        bigLoss:    [ "That was ugly and I do NOT do ugly.", "The chips left but the look stayed. We bounce back.", "Down is just a direction, not a destination.", "Oof. We're gonna need a better third act.", "That hand was NOT the vibe. Reset." ],
+        bust:       [ "That is not the look I was going for.", "Bust. And I was on such a good aesthetic roll.", "Too greedy on the draw. Ruins the composition.", "Over 21. The table ate my whole mood.", "I'll redecorate this feeling into a better hand." ],
+        push:       [ "Push. The aesthetic was a tie too, honestly.", "Nobody wins a push, but at least we both looked good.", "Even. The universe needs symmetry sometimes.", "Matching energy. I want to break it though.", "A tie is just an invitation to go harder next hand." ],
+        taunt:      [ "Honey, your tell is louder than your chips.", "I'm winning AND I look better than you. Choose a struggle.", "The table's a canvas. You're paint I'm covering up.", "You came to the wrong gallery, baby.", "Style AND substance. You're bringing neither." ],
+        winStreak:  [ "On a streak and I'm glowing.", "Three wins and the room keeps looking over here.", "This table is my personal runway tonight.", "Winning streak with the winning look. Double flex.", "The energy is immaculate right now." ]
+      },
+
+      QUILL: {
+        blackjack:  [ "Twenty-one. The sentence writes itself.", "Blackjack — the only word worth saying right now.", "The felt is a page. That hand was the punctuation.", "Some endings write themselves. This was one.", "A perfect line in a perfect story.", "The narrative demanded a blackjack. Delivered." ],
+        doubleWin:  [ "Doubled down like a good second act.", "The story called for a turning point. This was it.", "Two chapters, same hero, bigger payoff.", "I doubled because the plot demanded boldness.", "The manuscript of this night just got better." ],
+        doubleLoss: [ "The tragedy has to come before the third act.", "Even the best novels have a chapter that hurts.", "I wrote this scene already. The recovery comes next.", "A doubled loss is just elevated dramatic tension.", "The fall makes the rise worth reading." ],
+        bigWin:     [ "The climax arrived on schedule.", "This is the line they'll quote later.", "Every word of this session was building to that.", "Big win. The ending earns it.", "I'll remember exactly how this hand felt. And write it." ],
+        bigLoss:    [ "The story isn't over. Not even close.", "A loss this clean demands a cleaner comeback.", "The antagonist scores here. The hero's still standing.", "Dark chapter. The pen doesn't stop.", "This loss has a purpose. I'll find it by the last hand." ],
+        bust:       [ "Overwritten. The card said too much.", "I pushed the paragraph too far.", "The story needed an edit. The table did it for me.", "Bust — the chapter that didn't need to be written.", "Reached for the dramatic finish. Got the wrong one." ],
+        push:       [ "A push is a sentence without a period.", "Neither paragraph wins. Revise and resubmit.", "The story paused. I don't do pauses.", "Even — which is another word for unfinished.", "A tie is just a draft. Next hand is the final copy." ],
+        taunt:      [ "Your story at this table is not going the way you planned.", "I've already read the ending you're heading toward.", "Every hand you play reads like a rough draft.", "The table is my page. You're a footnote.", "I don't need to threaten. I just narrate what's already happening." ],
+        winStreak:  [ "The narrative has momentum. I'm not stopping it.", "Three wins. The story arc is ascending.", "Every hand is a sentence. This paragraph is excellent.", "The streak is the story's best chapter.", "I'm on the part of the story where the hero doesn't lose." ]
+      },
+
+      PIKADON: {
+        blackjack:  [ "Blackjack. Target acquired, neutralized.", "Twenty-one. Mission complete.", "I called that hand three cards ago.", "Threat eliminated. Chips secured.", "Execution without error. That's standard.", "The objective was twenty-one. Achieved." ],
+        doubleWin:  [ "Doubled the stake. Doubled the return. Calculated aggression.", "High-value target. Engaged twice. Won twice.", "The double was the tactically correct move.", "Commit to the position. Win on the position.", "Maximum exposure, maximum return. That's doctrine." ],
+        doubleLoss: [ "Took losses doubling in. The position was correct — the variance wasn't.", "Casualties acknowledged. Regrouping.", "The double was right. The outcome wasn't. Variance has no loyalty.", "Debrief after. Right now, reset.", "Even the best operation loses assets. Continue the mission." ],
+        bigWin:     [ "Large position. Large return. That's the plan executed.", "The stack reflects the preparation.", "Target secured. Proceed to next objective.", "High yield. The risk assessment was accurate.", "Mission success. No debrief needed." ],
+        bigLoss:    [ "Significant loss. Assessing breach.", "The exposure was calculated. The outcome was not. Adjust.", "Down but not compromised. The perimeter holds.", "Took a direct hit. Still operational.", "Regroup. Rearm. Return." ],
+        bust:       [ "Over 21. Over-committed the position.", "The limit is a hard boundary. I crossed it.", "Bust. Tactical error. Logging it.", "Hit past the threshold. It won't happen twice.", "Over-extended. Pulling back and resetting." ],
+        push:       [ "Push. The enemy matched. Unacceptable.", "Tied. That means neither side has the advantage. Change that.", "Even engagement. Increase pressure next hand.", "A push is a failure to secure the objective.", "Matched. I don't match. I dominate. Next hand." ],
+        taunt:      [ "I've catalogued every tell you have. You have six.", "You're not playing a game — you're walking into an audit.", "I see everything at this table. You included.", "Every move you've made tonight has been logged.", "You can't bluff someone who already knows the answer." ],
+        winStreak:  [ "The operation is performing above projection.", "Three consecutive wins. The pattern is confirmed.", "The enemy has no counter to this line of play.", "Streak sustained. Maintaining tactical pressure.", "I don't get hot. I just execute longer than they can resist." ]
+      },
+
+      VILLAIN: {
+        blackjack:  [ "Twenty-one. Did you think this table was ever yours?", "Blackjack. The house was always going to win tonight.", "That's mine. Like everything else at this table.", "The cards answer to me. They always have.", "Twenty-one. Again. Are you surprised yet?", "Blackjack. I don't celebrate. This was expected." ],
+        doubleWin:  [ "You doubled my stack for me. How generous.", "I doubled down because I own this felt.", "Twice the chips from one hand. This city is good to me.", "Double win. Add it to what they owe.", "They called it bold. I call it inevitable." ],
+        doubleLoss: [ "A setback. Not a defeat. Know the difference.", "The empire absorbs this. Watch.", "I lost a hand. The game is still mine.", "That chip leaves my stack and comes back tenfold.", "You think that matters? You're not even in my equation." ],
+        bigWin:     [ "The mountain grows higher. You're farther below.", "Every chip of yours that crosses to me is a message.", "This table feeds me. It starves everyone else.", "The city was built to make me rich. Proof.", "Big stack. Bigger appetite. Keep playing." ],
+        bigLoss:    [ "...", "You got one. Don't get comfortable.", "That was a gift. You won't get another.", "Enjoy the chips. They're not yours to keep.", "A loss. The first and the last." ],
+        bust:       [ "Over 21. The only surprise I've had tonight.", "Bust. Log it. Never speak of it.", "The table took from me. It won't happen twice.", "Over the line. I don't go over lines.", "Bust. The one word I don't allow at my table." ],
+        push:       [ "You matched me. That's not a win. That's a warning.", "Push. Because I allowed it.", "We tied. Enjoy it. It's the closest you'll get.", "A draw. Your ceiling. My floor.", "Push. The charity ends next hand." ],
+        taunt:      [ "You've come this far just to lose to me. Poetic.", "Every city brought you to this table. This table ends you.", "I was built to be the final answer. You're the last question.", "They sent you to challenge me. Who sent them?", "This isn't a game anymore. This is a verdict.", "You beat everyone else. That means nothing. I'm not everyone else." ],
+        winStreak:  [ "The streak is the point. The point is dominance.", "Count them. Three, four, five — and I'm not tired.", "Every win is a wall you can't climb.", "The final boss doesn't have losing streaks.", "This is what you came to see. And you still can't stop it." ]
+      }
+    },
+
+    // ── Generic fallback moment arrays ────────────────────────────────
     blackjack: [
       "Blackjack. That's what that looks like.",
       "Twenty-one, baby. Read it and respect it.",
@@ -458,70 +562,267 @@ window.STORY = {
   },
 
   // ─────────────────────────────────────────────
-  // 7. COMPANIONS
-  // Women you can bring to venues for lore bonuses.
-  // Each companion boosts your lore per session.
-  // presetTexts: messages you can send them in-game.
-  // giftMessages: shown when you send a gift.
+  // 7. COMPANIONS v2
+  // Bring a companion to venues for lore bonuses.
+  // satisfyEveryHands = how often she needs a like (drink/food).
+  // convo = her reply lines; presetTexts = what you can send her.
   // ─────────────────────────────────────────────
-  companions: {
-    roster: [
-      {
-        id: "jade",
-        name: "Jade",
-        aesthetic: "designer everything, moves like every room was built for her",
-        loreBonus: 4,
-        intro: "You met her at Club Paradiso. She doesn't need you to impress her. She already knows."
+  companions: [
+    {
+      id: "jade",
+      name: "Jade",
+      tier: "supermodel",
+      personality: "Composed, quietly powerful. Doesn't chase anything — never has to. A compliment from Jade lands like a verdict.",
+      aesthetic: "designer everything, moves like every room was built for her, never the loudest presence but always the most noticed",
+      baseLoreBonus: 12,
+      likes: {
+        drinks: [ "Champagne", "Elderflower Spritz", "Still Water with Lime" ],
+        food:   [ "Oysters", "Dark Chocolate", "Truffle Fries" ]
       },
-      {
-        id: "nova",
-        name: "Nova",
-        aesthetic: "art-world cool, no labels, all intention, the most interesting person in any room",
-        loreBonus: 5,
-        intro: "Nova doesn't follow the circuit. The circuit follows her. She agreed to one night. Make it count."
+      satisfyEveryHands: 8,
+      convo: {
+        good:  [
+          "That table was watching you all night.",
+          "You carry yourself different than other players.",
+          "I've been to a hundred of these. You're not like a hundred of these.",
+          "Keep it up. I'll stay."
+        ],
+        bad:   [
+          "You're not going to win anything tilting like that.",
+          "I don't do desperation. Fix your energy.",
+          "That hand was messy. So was the one before it.",
+          "I came to be seen next to someone worth seeing."
+        ],
+        flirt: [
+          "You want to impress me? Win beautifully.",
+          "I'm hard to keep. Easy to want. Different problem.",
+          "Don't stare. Play.",
+          "Buy me something tomorrow. Tonight, just win."
+        ]
       },
-      {
-        id: "soleil",
-        name: "Soleil",
-        aesthetic: "Miami heat, sun-kissed, quick laugh, even quicker read of people",
-        loreBonus: 4,
-        intro: "She found you at the Miami stop. Said she had a feeling about you. That feeling's worth at least four rep points a night."
+      presetTexts: [
+        "The room changed when you walked in.",
+        "Next stop's better. You'll understand when we get there.",
+        "I got something for you. No occasion.",
+        "You were the best part of tonight.",
+        "Save the seat next to me."
+      ]
+    },
+    {
+      id: "nova",
+      name: "Nova",
+      tier: "model",
+      personality: "Art-world wanderer. Fiercely independent. Fascinated by process, not outcomes. She finds people interesting until they become predictable.",
+      aesthetic: "no labels, all intention — vintage jacket over something expensive, the most interesting person in any room without announcing it",
+      baseLoreBonus: 14,
+      likes: {
+        drinks: [ "Mezcal Sour", "Iced Matcha", "Sparkling Rosé" ],
+        food:   [ "Charcuterie Board", "Mango Sorbet", "Edamame" ]
       },
-      {
-        id: "reign",
-        name: "Reign",
-        aesthetic: "New York sharpness, black wardrobe, gallery owner energy, quietly runs things",
-        loreBonus: 6,
-        intro: "Reign doesn't accompany people. She makes appearances. You earned one. Don't waste it."
+      satisfyEveryHands: 7,
+      convo: {
+        good:  [
+          "There's something almost meditative about watching you play.",
+          "You make decisions like you trust yourself. That's rare.",
+          "I'm going to think about that hand for a while.",
+          "Most people at these tables are performing. You're just... doing it."
+        ],
+        bad:   [
+          "You're overthinking. I can see it from here.",
+          "That wasn't you. That was someone panicking.",
+          "I don't get bored often. Don't make me start.",
+          "The energy you're bringing right now isn't it."
+        ],
+        flirt: [
+          "You've been looking over here more than at your cards.",
+          "I'm not a good luck charm. I'm a good reason to focus.",
+          "Take me somewhere interesting after this.",
+          "Stop smiling at me and win something."
+        ]
       },
-      {
-        id: "cassidy",
-        name: "Cassidy",
-        aesthetic: "Texas wild card — rodeo boots and a Rolex, surprises everyone",
-        loreBonus: 3,
-        intro: "She walked into the Texas house and the whole room recalibrated. She's with you tonight."
-      }
+      presetTexts: [
+        "Thinking about you between hands.",
+        "I found a place after this. Come.",
+        "You ever think about what any of this means?",
+        "I don't say this often — you're interesting.",
+        "The night's just getting started."
+      ]
+    },
+    {
+      id: "soleil",
+      name: "Soleil",
+      tier: "model",
+      personality: "Sun-kissed and sharp. Laughs fast and means it. Reads people like a second language. The warmest person at the table — and the most dangerous to underestimate.",
+      aesthetic: "Miami heat made human — sundress and gold, quick laugh, quicker eyes",
+      baseLoreBonus: 13,
+      likes: {
+        drinks: [ "Piña Colada", "Coconut Water", "Frozen Rosé" ],
+        food:   [ "Ceviche", "Mango Slices", "Warm Bread" ]
+      },
+      satisfyEveryHands: 7,
+      convo: {
+        good:  [
+          "Okay — that was actually impressive.",
+          "See? I told you I bring good energy.",
+          "The whole room felt that win. I know I did.",
+          "You're making this look easy. It's not, right?"
+        ],
+        bad:   [
+          "Hey. Breathe. You're in your head.",
+          "Bad runs end. This one's almost over.",
+          "I've seen worse come back. You've got this.",
+          "Stop chasing it. Let it come back to you."
+        ],
+        flirt: [
+          "Focus, baby. You can smile at me after the hand.",
+          "Miami nights don't last forever. Make this one count.",
+          "I'll tell you a secret — but you gotta win first.",
+          "You're doing that thing where you play better when I'm watching."
+        ]
+      },
+      presetTexts: [
+        "Miami misses you. I might too.",
+        "Tell me something good.",
+        "I'm already dressed. Where are we going?",
+        "You bring the chips. I'll bring the vibe.",
+        "Tonight feels like one of those nights."
+      ]
+    },
+    {
+      id: "reign",
+      name: "Reign",
+      tier: "supermodel",
+      personality: "New York precision. Runs a gallery, three rooms of which are named after her. She doesn't attend — she presides. Reserved until she decides you're worth her full attention.",
+      aesthetic: "all black, architectural jewelry, gallery owner energy, the kind of woman a room reorganizes itself around",
+      baseLoreBonus: 15,
+      likes: {
+        drinks: [ "Dry Red Wine", "Black Coffee", "Gin on the Rocks" ],
+        food:   [ "Cheese Board", "Dark Chocolate Truffles", "Roasted Nuts" ]
+      },
+      satisfyEveryHands: 9,
+      convo: {
+        good:  [
+          "That was deliberate. I respect deliberate.",
+          "I've curated enough talent to know it when I see it.",
+          "You're building something at that table. I can see the architecture.",
+          "The room noticed. I noticed first."
+        ],
+        bad:   [
+          "You're playing reactive. Stop.",
+          "That wasn't strategy. That was impulse dressed up as one.",
+          "I don't stay for sloppy. Pull it together.",
+          "The work speaks. Right now it's saying the wrong things."
+        ],
+        flirt: [
+          "You want my attention? Earn my respect first. You're close.",
+          "I don't flirt across tables. Win, then find me.",
+          "My gallery has a piece that reminds me of you. Tonight is why.",
+          "Don't mistake my watching for admiration. Not yet."
+        ]
+      },
+      presetTexts: [
+        "New York is always open when you need it.",
+        "The gallery has something you should see.",
+        "I don't send first. Tonight I'm making an exception.",
+        "You know how to find me when you're ready.",
+        "That was the right call. Both of them."
+      ]
+    },
+    {
+      id: "cassidy",
+      name: "Cassidy",
+      tier: "normal",
+      personality: "The real one. Warm without being soft. Laughs at herself. Doesn't need the spotlight — she just makes everything better by being in the room. She's been with you since Texas and she's going the whole way.",
+      aesthetic: "rodeo boots and a Rolex — she makes it work because she's not trying to, warm eyes, the kind of smile that makes a room exhale",
+      baseLoreBonus: 20,
+      likes: {
+        drinks: [ "Whiskey Neat", "Sweet Tea", "Cold Beer" ],
+        food:   [ "Chicken and Waffles", "Peach Cobbler", "Loaded Fries" ]
+      },
+      satisfyEveryHands: 6,
+      convo: {
+        good:  [
+          "There it is. That's the player I know.",
+          "I was watching that hand. You made the right call.",
+          "I don't say this to everyone — you're the real thing.",
+          "That felt good to watch. Felt good to be here for."
+        ],
+        bad:   [
+          "Hey. I'm still here. That's what I do.",
+          "It's one hand. You've come back from worse and I was there for that too.",
+          "Don't spiral. You're better than the bad run.",
+          "I'm not going anywhere. Just reset."
+        ],
+        flirt: [
+          "You know I'm rooting for you whether you're winning or not.",
+          "Stop worrying about impressing me. You already did that in Texas.",
+          "After this, just you and me. Somewhere quiet.",
+          "I like you at your worst. Imagine what your best does to me."
+        ]
+      },
+      presetTexts: [
+        "Still thinking about you. Just so you know.",
+        "Don't forget to eat between sessions.",
+        "I'm proud of you. That's not nothing.",
+        "You've come so far. I watched every step.",
+        "When this is done — we're celebrating. Just us."
+      ]
+    }
+  ],
+
+  // ─────────────────────────────────────────────
+  // 7b. LOYALTY SYSTEM
+  // The ride-or-die pays the highest lore across the final 4 cities.
+  // Betray her for a supermodel once — her bonus is cut in half.
+  // ─────────────────────────────────────────────
+  loyalty: {
+    normalGirlId: "cassidy",
+    normalMaxBonus: 50,
+    supermodelSwitchPenalty: 0.5,
+    note: "The ride-or-die pays max lore across the final 4 cities — but bring a supermodel over her even once and her lore is halved."
+  },
+
+  // ─────────────────────────────────────────────
+  // 7c. FAT TONY — Loan Shark
+  // The man who'll front you money when you're broke.
+  // taxRate = fraction of the loan taken as interest.
+  // angerLines fire at escalating anger levels (1-3).
+  // ─────────────────────────────────────────────
+  fatTony: {
+    name: "Fat Tony",
+    taxRate: 0.2,
+    greet: [
+      "You look broke, kid. I can fix that — for a price.",
+      "Tony sees a man down on chips and a fire in his eyes. I respect the fire. Let's talk.",
+      "Everybody hits the wall eventually. I'm the door in that wall.",
+      "Five minutes, no paperwork, no witnesses. Welcome to Tony's bank.",
+      "You need a loan or you need a lecture? Because I only do one of those."
     ],
-    presetTexts: [
-      "Tonight's going well. Thought you should know.",
-      "Next city. You coming?",
-      "Got something for you. Nothing serious — just wanted to.",
-      "You were right about this place.",
-      "The table's been good to me. You bring the luck.",
-      "Save me a seat.",
-      "Don't tell me the score. Let me watch.",
-      "You ever just feel like everything's lined up right?",
-      "Dress nice. This one's worth it.",
-      "Made it to Vegas. Wish you were here."
+    angerLines: [
+      { atAnger: 1, line: "You're a little late, friend. I don't love late." },
+      { atAnger: 2, line: "I'm starting to think you're avoiding me. That's bad for your knees." },
+      { atAnger: 3, line: "I sent two very polite men to find you. They weren't polite." }
     ],
-    giftMessages: [
-      "She texts back immediately: 'You didn't have to. I love it.'",
-      "A few seconds pass. Then: '...okay you have taste. I'll give you that.'",
-      "She sends a photo. No caption needed.",
-      "She replies with a single star emoji. High praise from her.",
-      "Her reply: 'Now I have to show up just to wear this.'",
-      "'Adding this to the collection. You're setting a high bar.'",
-      "She calls instead of texting. You pick up smiling."
+    threat: [
+      "Every day you owe me is a day I'm less patient.",
+      "I financed your dream. Don't make it a nightmare for both of us.",
+      "Money has feelings, kid. Mine are getting hurt.",
+      "I've forgiven debts before. I haven't forgotten them.",
+      "The interest doesn't sleep. Neither do I."
+    ],
+    collection: [
+      "Here we are. I was hoping we wouldn't be here.",
+      "I came personally. That should tell you something.",
+      "You thought I was a rumor. I'm very real.",
+      "I'm going to need those chips. All of them.",
+      "This is the part where we settle up. Let's keep it clean."
+    ],
+    payoffLines: [
+      "Now THAT is what I like to see. Every dollar, on time. You're good people.",
+      "Paid in full. The slate is clean — wipe it hard, it stays that way.",
+      "Look at you. Came in broke and paid me back with interest. I'm almost proud.",
+      "Debt's cleared. Next time you're down, you know where to find me.",
+      "That's the beauty of this business — everybody wins when they pay."
     ]
   },
 

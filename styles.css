@@ -3131,6 +3131,124 @@ body::after {
 }
 .invite-dismiss:hover { transform: translateY(-2px); }
 
+/* ══════════════════════════════════════════════════════════
+   PHASE-3 — FAT TONY, COMPANION TIERS, NEEDS, CONVO
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Fat Tony debt HUD (fixed top-left on table) ── */
+#tony-debt-hud {
+  animation: tony-pulse 3s ease infinite;
+}
+
+@keyframes tony-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(224,48,64,0.2); }
+  50%       { box-shadow: 0 0 16px rgba(224,48,64,0.45); }
+}
+
+/* ── Companion need prompt (floating above action bar) ── */
+#companion-need-prompt {
+  animation: slideUpPrompt 0.4s cubic-bezier(0.2, 0, 0.1, 1) both;
+}
+
+@keyframes slideUpPrompt {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Tier badge (used inside companion cards) ── */
+.tier-badge-normal {
+  font-family: 'Cinzel', serif;
+  font-size: 0.38rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  background: rgba(201,168,76,0.06);
+  border: 1px solid rgba(201,168,76,0.2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 2px;
+}
+
+.tier-badge-model {
+  font-family: 'Cinzel', serif;
+  font-size: 0.38rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  background: rgba(0,229,255,0.08);
+  border: 1px solid rgba(0,229,255,0.25);
+  padding: 0.1rem 0.4rem;
+  border-radius: 2px;
+}
+
+.tier-badge-supermodel {
+  font-family: 'Cinzel', serif;
+  font-size: 0.38rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f87171;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.25);
+  padding: 0.1rem 0.4rem;
+  border-radius: 2px;
+}
+
+/* ── Companion card bigger portrait (override picker) ── */
+.companion-card .companion-card-inner .companion-portrait-lg {
+  width: 4.5rem;
+  height: 5.5rem;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(201,168,76,0.3);
+  flex-shrink: 0;
+  box-shadow: 0 0 14px rgba(201,168,76,0.12), 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.companion-card .companion-card-inner .companion-portrait-lg img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+
+/* ── Phone bank debt section ── */
+.phone-bank-tony {
+  background: rgba(224,48,64,0.05);
+  border: 1px solid rgba(224,48,64,0.18);
+  border-radius: 2px;
+  padding: 0.5rem 0.6rem;
+  margin-top: 0.3rem;
+}
+
+.phone-bank-tony-header {
+  font-family: 'Cinzel', serif;
+  font-size: 0.42rem;
+  letter-spacing: 0.25em;
+  color: #e03040;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+/* ── Phone chat convo choices styling ── */
+.phone-convo-section-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.4rem;
+  letter-spacing: 0.15em;
+  color: rgba(0,229,255,0.3);
+  text-transform: uppercase;
+  padding: 0.2rem 0.3rem 0;
+}
+
+/* ── Table companion portrait phase-3 ── */
+#companion-table-portrait {
+  transition: opacity 0.4s ease;
+}
+
+/* ── Companion satisfaction fill animation ── */
+@keyframes satDrop {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

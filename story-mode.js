@@ -55,6 +55,16 @@ const SState = (() => {
     handWins: 0,
     handStreak: 0,
     phase: 'underground',        // 'underground' | 'circuit'
+    // ── PHASE-3 additions ──────────────────────────────────
+    debt: 0,                     // Fat Tony debt principal
+    tonyAnger: 0,                // 0–10 anger meter
+    citiesSinceLoan: 0,          // cities entered since loan taken (not city clears)
+    loanActive: false,           // true while debt > 0
+    handsThisVenue: 0,           // for companion satisfaction tracking
+    companionSatisfaction: {},   // { id: 0–100 }
+    companionLeft: false,        // companion walked out this session
+    loyaltyBroken: false,        // set true if player ever picks supermodel
+    cassidyLoreAccrued: 0,       // raw lore cassidy has earned before any penalty
   };
 
   let _state = JSON.parse(JSON.stringify(DEFAULTS));
@@ -116,11 +126,527 @@ function loreBarPercent() {
 }
 
 function getCompanion(id) {
-  return (S.companions.roster || []).find(c => c.id === id);
+  // Handle both old-style roster array and v2 array format
+  const roster = Array.isArray(S.companions) ? S.companions : (S.companions.roster || []);
+  return roster.find(c => c.id === id);
 }
 
 function getCity(id) {
-  return (S.cities || []).find(c => c.id === id);
+  const cities = (window.STORY && window.STORY.cities) ? window.STORY.cities : (S.cities || []);
+  return cities.find(c => c.id === id);
+}
+
+// ── PHASE-3: Fat Tony helpers ─────────────────────────────────
+function fatTonyData() {
+  const ft = (window.STORY && window.STORY.fatTony) ? window.STORY.fatTony : null;
+  return ft || {
+    name: 'Fat Tony',
+    greet: ["You look short on cash, friend. Let me help you out."],
+    taxRate: 0.25,
+    angerLines: [
+      { atAnger: 2, line: "Don't make me come find you." },
+      { atAnger: 4, line: "Your tab's running real hot right now." },
+      { atAnger: 6, line: "I'm a patient man — but patience has a price." },
+      { atAnger: 8, line: "Last warning. Pay up or there are consequences." },
+    ],
+    threat: ["You thought I forgot? I never forget."],
+    collection: ["You've been ducking me too long. Now you pay — one way or another."],
+    payoffLines: ["Pleasure doing business. Don't make it a habit."],
+  };
+}
+
+function tonyAngerLineForLevel(anger) {
+  const ft = fatTonyData();
+  const lines = (ft.angerLines || []).filter(l => l.atAnger <= anger);
+  if (!lines.length) return null;
+  return lines[lines.length - 1].line;
+}
+
+function showFatTonyModal(loanAmount) {
+  const ft = fatTonyData();
+  const overlay = document.getElementById('modal-overlay');
+  const title = document.getElementById('modal-title');
+  const sub = document.getElementById('modal-sub');
+  const body = document.getElementById('modal-body');
+  if (!overlay) return;
+
+  const greet = pick(ft.greet || ["Need a loan?"]);
+  const imgSrc = 'assets/companions/fattony.png';
+
+  title.textContent = ft.name || 'Fat Tony';
+  sub.textContent = '"' + greet + '"';
+  body.innerHTML = `
+    <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
+      <div style="width:4rem;height:5rem;border-radius:4px;overflow:hidden;border:1px solid rgba(224,48,64,0.4);flex-shrink:0;background:#0a0608">
+        <img src="${imgSrc}" alt="Fat Tony" style="width:100%;height:100%;object-fit:cover;object-position:top"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1.6rem;color:#e03040">$</span>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.8rem;color:rgba(245,240,232,0.55);line-height:1.5;margin-bottom:0.6rem">
+          Interest rate: <span style="color:#e03040">${Math.round((ft.taxRate||0.25)*100)}% per city entered</span>.
+          Miss 3 cities and things get… unpleasant.
+        </div>
+        <div id="tony-loan-opts" class="add-chips-grid" style="grid-template-columns:1fr 1fr">
+          ${[500,1000,2500,5000].map(n => `
+            <div class="add-chips-btn" onclick="window.takeTonyLoan(${n})" style="border-color:rgba(224,48,64,0.25)">
+              <span class="amount" style="color:#e03040">$${n >= 1000 ? (n/1000)+'K' : n}</span>
+              <span class="label">Borrow</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div id="tony-hud-msg" style="display:none;font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:#e03040;text-align:center;margin-top:0.4rem"></div>
+  `;
+  overlay.classList.add('show');
+}
+
+window.takeTonyLoan = function(amount) {
+  const ft = fatTonyData();
+  const taxRate = ft.taxRate || 0.25;
+  const currentDebt = SState.get('debt') || 0;
+  const newDebt = currentDebt + amount;
+  SState.set('debt', newDebt);
+  SState.set('loanActive', true);
+  SState.set('citiesSinceLoan', 0);
+  if (typeof State !== 'undefined') {
+    State.set('bankroll', (State.get('bankroll') || 0) + amount);
+  }
+  // Lore bonus: debt = street cred
+  earnLore(3, 'Tony\'s money — street cred');
+  updateTonyHud();
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+  if (typeof closeModal !== 'undefined') closeModal();
+  showLoreToast('Fat Tony fronted you $' + amount.toLocaleString() + ' — repay via Phone → Bank');
+};
+
+function repayTonyLoan(amount) {
+  const debt = SState.get('debt') || 0;
+  if (debt <= 0) {
+    showLoreToast('No debt to repay.');
+    return;
+  }
+  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
+  const pay = Math.min(amount || debt, bankroll, debt);
+  if (pay <= 0) { showLoreToast('Not enough cash to repay.'); return; }
+
+  const ft = fatTonyData();
+  if (typeof State !== 'undefined') State.set('bankroll', bankroll - pay);
+  const newDebt = Math.max(0, debt - pay);
+  SState.set('debt', newDebt);
+  if (newDebt <= 0) {
+    SState.set('loanActive', false);
+    SState.set('tonyAnger', 0);
+    SState.set('citiesSinceLoan', 0);
+    const line = pick(ft.payoffLines || ['Pleasure doing business.']);
+    showLoreToast('Debt cleared. Fat Tony: "' + line + '"');
+  } else {
+    showLoreToast('Partial payment. Remaining: $' + newDebt.toLocaleString());
+  }
+  updateTonyHud();
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+}
+
+function onCityEnterTonyCheck(cityId) {
+  const loanActive = SState.get('loanActive');
+  if (!loanActive) return;
+
+  const ft = fatTonyData();
+  const taxRate = ft.taxRate || 0.25;
+
+  // Accrue interest
+  const debt = SState.get('debt') || 0;
+  const interest = Math.ceil(debt * taxRate);
+  SState.set('debt', debt + interest);
+
+  // Increase anger
+  const anger = Math.min(10, (SState.get('tonyAnger') || 0) + 1);
+  SState.set('tonyAnger', anger);
+
+  const cities = (SState.get('citiesSinceLoan') || 0) + 1;
+  SState.set('citiesSinceLoan', cities);
+
+  // Show anger dialog
+  const angerLine = tonyAngerLineForLevel(anger);
+  if (angerLine) {
+    setTimeout(() => showDialogBubble(ft.name || 'Fat Tony', 'VILLAIN', angerLine), 1800);
+  }
+
+  // Collection event after 3 cities unpaid
+  if (cities >= 3) {
+    setTimeout(() => triggerTonyCollection(), 2500);
+  }
+
+  updateTonyHud();
+}
+
+function triggerTonyCollection() {
+  const ft = fatTonyData();
+  const overlay = document.getElementById('modal-overlay');
+  const title = document.getElementById('modal-title');
+  const sub = document.getElementById('modal-sub');
+  const body = document.getElementById('modal-body');
+  if (!overlay) return;
+
+  const threatLine = pick(ft.threat || ["You've been ducking me."]);
+  const collectionLine = pick(ft.collection || ["Pay up."]);
+
+  // Penalty: lose 30% of bankroll, companion walks if present
+  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
+  const penalty = Math.ceil(bankroll * 0.30);
+  if (typeof State !== 'undefined') State.set('bankroll', Math.max(0, bankroll - penalty));
+
+  // Companion walks
+  const compId = SState.get('selectedCompanionId');
+  if (compId) {
+    SState.set('selectedCompanionId', null);
+    SState.set('companionLeft', true);
+  }
+
+  // Lore hit
+  const was = SState.get('lore');
+  SState.set('lore', Math.max(0, was - 10));
+  renderLoreBar();
+
+  // Reset anger but keep debt (maybe partial paid)
+  SState.set('tonyAnger', 0);
+  SState.set('citiesSinceLoan', 0);
+
+  title.textContent = ft.name || 'Fat Tony';
+  sub.textContent = '"' + threatLine + '"';
+  body.innerHTML = `
+    <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
+      <div style="width:4rem;height:5rem;border-radius:4px;overflow:hidden;border:2px solid #e03040;flex-shrink:0;background:#0a0608">
+        <img src="assets/companions/fattony.png" alt="Fat Tony"
+          style="width:100%;height:100%;object-fit:cover;object-position:top"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:1.6rem">💀</span>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.85rem;color:rgba(245,240,232,0.8);line-height:1.5;margin-bottom:0.5rem">"${collectionLine}"</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:#e03040;margin-bottom:0.25rem">— Lost $${penalty.toLocaleString()} (30% of bankroll)</div>
+        ${compId ? `<div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:rgba(245,240,232,0.4);">— Your companion left</div>` : ''}
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:rgba(245,240,232,0.4);">— −10 Lore</div>
+      </div>
+    </div>
+    <div style="font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.1em;color:var(--gold-dim);text-transform:uppercase;text-align:center;margin-top:0.5rem">
+      Remaining debt: <span style="color:#e03040">$${(SState.get('debt')||0).toLocaleString()}</span>
+    </div>
+  `;
+
+  overlay.classList.add('show');
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+  updateTonyHud();
+}
+
+function updateTonyHud() {
+  let hud = document.getElementById('tony-debt-hud');
+  const debt = SState.get('debt') || 0;
+  const anger = SState.get('tonyAnger') || 0;
+  const loanActive = SState.get('loanActive');
+
+  if (!loanActive || debt <= 0) {
+    if (hud) hud.style.display = 'none';
+    return;
+  }
+
+  if (!hud) {
+    hud = document.createElement('div');
+    hud.id = 'tony-debt-hud';
+    hud.style.cssText = `
+      position:fixed;top:3.5rem;left:0.7rem;z-index:900;
+      background:rgba(10,4,8,0.9);border:1px solid rgba(224,48,64,0.4);
+      border-radius:2px;padding:0.3rem 0.55rem;display:flex;
+      flex-direction:column;gap:0.15rem;
+      backdrop-filter:blur(4px);cursor:pointer;
+    `;
+    hud.title = 'Tap to repay Fat Tony';
+    hud.onclick = () => showTonyRepayModal();
+    document.body.appendChild(hud);
+  }
+
+  const angerPct = Math.round((anger / 10) * 100);
+  const angerColor = anger >= 7 ? '#e03040' : anger >= 4 ? '#facc15' : '#f87171';
+
+  hud.style.display = 'flex';
+  hud.innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.35rem">
+      <div style="width:1.4rem;height:1.6rem;border-radius:2px;overflow:hidden;border:1px solid rgba(224,48,64,0.3);flex-shrink:0;background:#0a0608">
+        <img src="assets/companions/fattony.png" alt="T"
+          style="width:100%;height:100%;object-fit:cover;object-position:top"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:0.7rem;color:#e03040">$</span>
+      </div>
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:#e03040">DEBT $${debt.toLocaleString()}</div>
+        <div style="width:36px;height:3px;background:rgba(224,48,64,0.15);border-radius:2px;margin-top:2px;overflow:hidden">
+          <div style="width:${angerPct}%;height:100%;background:${angerColor};border-radius:2px;transition:width 0.5s"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showTonyRepayModal() {
+  const debt = SState.get('debt') || 0;
+  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
+  const overlay = document.getElementById('modal-overlay');
+  const title = document.getElementById('modal-title');
+  const sub = document.getElementById('modal-sub');
+  const body = document.getElementById('modal-body');
+  if (!overlay) return;
+
+  title.textContent = 'Repay Fat Tony';
+  sub.textContent = 'Clear your debt before he comes collecting.';
+  const options = [
+    { label: 'Pay All', amount: Math.min(debt, bankroll) },
+    { label: 'Pay Half', amount: Math.min(Math.ceil(debt/2), bankroll) },
+    { label: '$500', amount: Math.min(500, bankroll, debt) },
+  ].filter(o => o.amount > 0);
+
+  body.innerHTML = `
+    <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:#e03040;text-align:center;margin-bottom:1rem">
+      Outstanding: $${debt.toLocaleString()} · Anger: ${SState.get('tonyAnger')}/10
+    </div>
+    <div class="add-chips-grid" style="grid-template-columns:1fr 1fr 1fr">
+      ${options.map(o => `
+        <div class="add-chips-btn" onclick="window._tonyRepay(${o.amount})" style="border-color:rgba(224,48,64,0.3)">
+          <span class="amount" style="color:#e03040">$${o.amount.toLocaleString()}</span>
+          <span class="label">${o.label}</span>
+        </div>`).join('')}
+    </div>
+    <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.7rem;color:rgba(245,240,232,0.3);text-align:center;margin-top:0.8rem">
+      Your bankroll: $${bankroll.toLocaleString()}
+    </div>
+  `;
+  overlay.classList.add('show');
+}
+
+window._tonyRepay = function(amount) {
+  if (typeof closeModal !== 'undefined') closeModal();
+  repayTonyLoan(amount);
+};
+
+// ── PHASE-3: Companion tier & loyalty ────────────────────────
+function getCompanionTier(comp) {
+  if (!comp) return 'normal';
+  return comp.tier || 'normal';
+}
+
+function handleCompanionSelect(compId) {
+  const comp = getCompanion(compId);
+  if (!comp) return;
+  const tier = getCompanionTier(comp);
+
+  // If selecting supermodel, mark loyalty broken and halve cassidy accrued lore
+  const loyalty = (window.STORY && window.STORY.loyalty) ? window.STORY.loyalty : null;
+  const normalGirlId = (loyalty && loyalty.normalGirlId) ? loyalty.normalGirlId : 'cassidy';
+  const penalty = (loyalty && loyalty.supermodelSwitchPenalty != null) ? loyalty.supermodelSwitchPenalty : 0.5;
+
+  if ((tier === 'supermodel' || tier === 'model') && !SState.get('loyaltyBroken')) {
+    SState.set('loyaltyBroken', true);
+    // Halve cassidy's accrued lore contribution
+    const accrued = SState.get('cassidyLoreAccrued') || 0;
+    if (accrued > 0) {
+      const loss = Math.ceil(accrued * penalty);
+      const was = SState.get('lore');
+      SState.set('lore', Math.max(0, was - loss));
+      renderLoreBar();
+      showLoreToast('Loyalty broken — −' + loss + ' Lore (Cassidy penalty)');
+    }
+  }
+
+  // Track cassidy's session start
+  if (compId === normalGirlId) {
+    // Reset satisfaction
+    const sat = SState.get('companionSatisfaction') || {};
+    if (sat[compId] == null) sat[compId] = 100;
+    SState.set('companionSatisfaction', sat);
+  }
+}
+
+function onCompanionLoreEarn(compId, amount) {
+  // If this is cassidy and loyalty is intact, track her contributions
+  const loyalty = (window.STORY && window.STORY.loyalty) ? window.STORY.loyalty : null;
+  const normalGirlId = (loyalty && loyalty.normalGirlId) ? loyalty.normalGirlId : 'cassidy';
+  if (compId === normalGirlId && !SState.get('loyaltyBroken')) {
+    const accrued = (SState.get('cassidyLoreAccrued') || 0) + amount;
+    SState.set('cassidyLoreAccrued', accrued);
+  }
+}
+
+// ── PHASE-3: Companion satisfaction needs ────────────────────
+let _needsCheckTimer = null;
+let _pendingNeedFor = null;
+
+function checkCompanionNeeds(handCount) {
+  const compId = SState.get('selectedCompanionId');
+  if (!compId) return;
+  const comp = getCompanion(compId);
+  if (!comp) return;
+
+  const satisfyEvery = comp.satisfyEveryHands || 5;
+  if (handCount <= 0 || handCount % satisfyEvery !== 0) return;
+
+  // Don't show if companion already left
+  if (SState.get('companionLeft')) return;
+
+  _pendingNeedFor = compId;
+  showCompanionNeedPrompt(comp);
+}
+
+function showCompanionNeedPrompt(comp) {
+  const sat = SState.get('companionSatisfaction') || {};
+  const curSat = sat[comp.id] != null ? sat[comp.id] : 100;
+
+  // Pick a drink or food from her likes
+  const likes = comp.likes || { drinks: ['Champagne'], food: ['Sushi'] };
+  const allOptions = [...(likes.drinks || []), ...(likes.food || [])];
+  const want = pick(allOptions) || 'something nice';
+
+  // Use bad convo line as the ask (she's demanding)
+  const convoAsk = comp.convo ? (pick(comp.convo.bad) || 'I could use a little attention right now...') : 'I could use a little attention right now...';
+
+  let prompt = document.getElementById('companion-need-prompt');
+  if (!prompt) {
+    prompt = document.createElement('div');
+    prompt.id = 'companion-need-prompt';
+    prompt.style.cssText = `
+      position:fixed;bottom:11rem;left:50%;transform:translateX(-50%);
+      z-index:850;max-width:min(420px,90vw);
+      background:rgba(4,6,16,0.96);border:1px solid rgba(201,168,76,0.3);
+      border-radius:4px;padding:0.7rem 0.9rem 0.8rem;
+      backdrop-filter:blur(6px);box-shadow:0 16px 40px rgba(0,0,0,0.7);
+    `;
+    document.body.appendChild(prompt);
+  }
+
+  const imgSrc = `assets/companions/${comp.id}.png`;
+  const initials = (comp.name || '?')[0].toUpperCase();
+  const satColor = curSat > 60 ? 'var(--cyan)' : curSat > 30 ? '#facc15' : '#e03040';
+
+  prompt.innerHTML = `
+    <div style="display:flex;gap:0.7rem;align-items:flex-start">
+      <div style="width:3rem;height:3.5rem;border-radius:3px;overflow:hidden;border:1px solid rgba(201,168,76,0.3);flex-shrink:0;background:#0a080e">
+        <img src="${imgSrc}" alt="${comp.name}"
+          style="width:100%;height:100%;object-fit:cover;object-position:top"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1rem;color:var(--gold)">${initials}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.1em;color:var(--gold);text-transform:uppercase;margin-bottom:0.2rem">${comp.name}</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.78rem;color:rgba(245,240,232,0.8);line-height:1.4;margin-bottom:0.4rem">"${convoAsk}"</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:rgba(245,240,232,0.4);margin-bottom:0.4rem">She wants: <span style="color:var(--gold)">${want}</span></div>
+        <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.45rem;color:rgba(245,240,232,0.3)">Satisfaction</span>
+          <div style="flex:1;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+            <div style="width:${curSat}%;height:100%;background:${satColor};border-radius:2px;transition:width 0.5s"></div>
+          </div>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.45rem;color:${satColor}">${curSat}%</span>
+        </div>
+        <div style="display:flex;gap:0.4rem">
+          <button onclick="window._compBuy('${comp.id}')"
+            style="flex:1;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;
+            color:var(--navy);background:linear-gradient(135deg,var(--gold-bright),var(--gold));
+            padding:0.35rem;border-radius:2px;cursor:pointer;border:none">
+            Buy ($75)
+          </button>
+          <button onclick="window._compIgnore('${comp.id}')"
+            style="flex:1;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;
+            color:rgba(245,240,232,0.4);border:1px solid rgba(255,255,255,0.1);
+            padding:0.35rem;border-radius:2px;cursor:pointer;background:transparent">
+            Ignore
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  prompt.style.display = 'flex';
+  // Auto-dismiss after 8 seconds with ignore penalty
+  clearTimeout(_needsCheckTimer);
+  _needsCheckTimer = setTimeout(() => { window._compIgnore(comp.id); }, 8000);
+}
+
+window._compBuy = function(compId) {
+  const comp = getCompanion(compId);
+  if (!comp) return;
+  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
+  if (bankroll < 75) { showLoreToast('Not enough for this.'); return; }
+  if (typeof State !== 'undefined') State.set('bankroll', bankroll - 75);
+  if (typeof renderBankroll !== 'undefined') renderBankroll();
+
+  const sat = SState.get('companionSatisfaction') || {};
+  sat[compId] = Math.min(100, (sat[compId] || 60) + 25);
+  SState.set('companionSatisfaction', sat);
+
+  // Use good convo line as positive response
+  const reply = comp.convo ? (pick(comp.convo.good) || 'Thank you, I appreciate that 💛') : 'Thank you! 💛';
+  showLoreToast(comp.name + ': "' + reply + '"');
+  earnLore(2, comp.name + ' satisfied');
+
+  const prompt = document.getElementById('companion-need-prompt');
+  if (prompt) prompt.style.display = 'none';
+  clearTimeout(_needsCheckTimer);
+};
+
+window._compIgnore = function(compId) {
+  const comp = getCompanion(compId);
+  if (!comp) { return; }
+  const sat = SState.get('companionSatisfaction') || {};
+  const newSat = Math.max(0, (sat[compId] || 100) - 30);
+  sat[compId] = newSat;
+  SState.set('companionSatisfaction', sat);
+
+  const prompt = document.getElementById('companion-need-prompt');
+  if (prompt) prompt.style.display = 'none';
+  clearTimeout(_needsCheckTimer);
+
+  if (newSat <= 0) {
+    // She leaves
+    SState.set('selectedCompanionId', null);
+    SState.set('companionLeft', true);
+    const leaveMsg = comp.convo ? (pick(comp.convo.bad) || "I'm done here.") : "I'm done here.";
+    showLoreToast(comp.name + ' left — "' + leaveMsg + '"');
+    renderCompanionAtTable();
+    renderCompanionBtn();
+  } else {
+    showLoreToast(comp.name + '\'s mood dropping (' + newSat + '%)');
+  }
+};
+
+// ── PHASE-3: Conversation lore system ────────────────────────
+function buildConvoChoices(compId) {
+  const comp = getCompanion(compId);
+  if (!comp || !comp.convo) return [];
+  return [
+    { type: 'good', label: 'Be real with her', text: pick(comp.convo.good || []), lore: +3, satDelta: +15 },
+    { type: 'flirt', label: 'Flirt a little', text: pick(comp.convo.flirt || comp.convo.good || []), lore: +2, satDelta: +10 },
+    { type: 'disrespect', label: 'Be cold', text: pick(comp.convo.bad || []), lore: -2, satDelta: -20 },
+  ];
+}
+
+// ── PHASE-3: Per-character dialog using byAgent ───────────────
+function getDialogLine(moment) {
+  // Try STORY.dialog.byAgent[currentBossId][moment] first
+  const cityId = SState.get('currentCityId');
+  const venueId = SState.get('currentVenueId');
+  let bossId = null;
+  if (cityId) {
+    const boss = CITY_BOSS_MAP[cityId];
+    if (boss) bossId = boss.agentId;
+  } else if (venueId) {
+    const boss = VENUE_BOSS_MAP[venueId] || VENUE_BOSS_MAP.default;
+    if (boss) bossId = boss.agentId;
+  }
+  if (!bossId && typeof State !== 'undefined') bossId = State.get('agentId');
+
+  const byAgent = window.STORY && window.STORY.dialog && window.STORY.dialog.byAgent;
+  if (bossId && byAgent && byAgent[bossId] && byAgent[bossId][moment] && byAgent[bossId][moment].length) {
+    return pick(byAgent[bossId][moment]);
+  }
+  // Fallback to generic pool
+  const generic = (window.STORY && window.STORY.dialog && window.STORY.dialog[moment]) ? window.STORY.dialog[moment] : S.dialog[moment];
+  return pick(generic || []) || null;
 }
 
 // ── LORE earnings ────────────────────────────────────────────
@@ -388,7 +914,17 @@ function renderCompanionBtn() {
   const compId = SState.get('selectedCompanionId');
   const comp = compId ? getCompanion(compId) : null;
   const lbl = document.getElementById('companion-label');
-  if (lbl) lbl.textContent = comp ? comp.name + ' (+' + comp.loreBonus + ' LORE)' : 'Bring Someone';
+  const loreBonus = comp ? (comp.baseLoreBonus != null ? comp.baseLoreBonus : (comp.loreBonus || 0)) : 0;
+  const sat = SState.get('companionSatisfaction') || {};
+  const curSat = comp ? (sat[comp.id] != null ? sat[comp.id] : 100) : null;
+  if (lbl) {
+    if (comp) {
+      const satStr = curSat != null ? ' · ' + curSat + '%' : '';
+      lbl.textContent = comp.name + ' (+' + loreBonus + ' LORE)' + satStr;
+    } else {
+      lbl.textContent = 'Bring Someone';
+    }
+  }
 }
 
 // P2: Boss/Agent mapping for underground venues and cities
@@ -409,6 +945,10 @@ function enterVenue(venue) {
   SState.set('currentVenueId', venue.id);
   SState.set('currentCityId', null);
   SState.set('sessionLore', 0);
+  SState.set('handsThisVenue', 0);
+  SState.set('companionLeft', false);
+  // PHASE-3: Tony check on venue entry (counts as a city-like event)
+  onCityEnterTonyCheck(venue.id);
 
   // Apply companion lore bonus for the session
   const compId = SState.get('selectedCompanionId');
@@ -478,15 +1018,29 @@ function renderCompanionAtTable() {
   const imgSrc = isKnown ? `assets/companions/${comp.id.toLowerCase()}.png` : `assets/companions/${comp.id}.png`;
   const initials = (comp.name || '?')[0].toUpperCase();
 
+  // PHASE-3: satisfaction and tier indicator
+  const sat = SState.get('companionSatisfaction') || {};
+  const curSat = sat[comp.id] != null ? sat[comp.id] : 100;
+  const satColor = curSat > 60 ? 'var(--cyan)' : curSat > 30 ? '#facc15' : '#e03040';
+  const tier = getCompanionTier(comp);
+  const tierGlow = tier === 'supermodel' ? 'rgba(248,113,113,0.25)' : tier === 'model' ? 'rgba(0,229,255,0.15)' : 'rgba(201,168,76,0.2)';
+
   el.style.display = 'flex';
   el.innerHTML = `
-    <div style="width:2.8rem;height:3.2rem;border-radius:4px;overflow:hidden;border:1px solid rgba(201,168,76,0.35);box-shadow:0 0 12px rgba(201,168,76,0.2);background:#0a0a14">
+    <div style="width:3.5rem;height:4.2rem;border-radius:4px;overflow:hidden;
+      border:1px solid rgba(201,168,76,0.4);
+      box-shadow:0 0 16px ${tierGlow}, 0 4px 12px rgba(0,0,0,0.5);
+      background:#0a0a14;position:relative">
       <img src="${imgSrc}" alt="${comp.name}"
         style="width:100%;height:100%;object-fit:cover;object-position:top;display:block"
         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1rem;color:var(--gold)">${initials}</span>
+      <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1.1rem;color:var(--gold)">${initials}</span>
+      <!-- Satisfaction bar at bottom of portrait -->
+      <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(0,0,0,0.4)">
+        <div style="width:${curSat}%;height:100%;background:${satColor};transition:width 0.5s"></div>
+      </div>
     </div>
-    <div style="font-family:'Cinzel',serif;font-size:0.38rem;letter-spacing:0.12em;color:var(--gold-dim);text-transform:uppercase;text-align:center;max-width:2.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${comp.name}</div>
+    <div style="font-family:'Cinzel',serif;font-size:0.38rem;letter-spacing:0.12em;color:var(--gold-dim);text-transform:uppercase;text-align:center;max-width:3.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${comp.name}</div>
   `;
 }
 
@@ -565,6 +1119,10 @@ function enterCity(city) {
   _currentVenue = null;
   SState.set('currentCityId', city.id);
   SState.set('currentVenueId', null);
+  SState.set('handsThisVenue', 0);
+  SState.set('companionLeft', false);
+  // PHASE-3: Fat Tony anger accrual on city entry
+  onCityEnterTonyCheck(city.id);
 
   // P2: Resolve boss for this city
   const boss = CITY_BOSS_MAP[city.id] || { agentId: city.rival?.agent || 'SHADDAI', name: city.rival?.name || 'SHADDAI', title: city.rival?.title || 'Dealer' };
@@ -751,16 +1309,29 @@ function renderPhoneContent(tab) {
         </div>
       `).join('')}
       ${roster.length ? '<div class="phone-section-title" style="margin-top:0.5rem">Companions</div>' : ''}
-      ${roster.map(c => `
+      ${roster.map(c => {
+        const sat = SState.get('companionSatisfaction') || {};
+        const curSat = sat[c.id] != null ? sat[c.id] : 100;
+        const satColor = curSat > 60 ? 'var(--cyan)' : curSat > 30 ? '#facc15' : '#e03040';
+        const lb = c.baseLoreBonus != null ? c.baseLoreBonus : (c.loreBonus || 0);
+        const tier = getCompanionTier(c);
+        const tierColor = tier === 'supermodel' ? '#f87171' : tier === 'model' ? 'var(--cyan)' : 'var(--gold-dim)';
+        return `
         <div class="phone-contact" onclick="openPhoneChat('${c.id}')">
-          ${companionAvatarHTML(c.id, c.name)}
+          ${companionAvatarHTML(c.id, c.name, '2.4rem')}
           <div class="phone-contact-info">
-            <div class="phone-contact-name">${c.name}</div>
-            <div class="phone-contact-num" style="color:var(--cyan)">+${c.loreBonus} LORE / session</div>
+            <div class="phone-contact-name">${c.name} <span style="font-size:0.42rem;color:${tierColor};opacity:0.7">${tier}</span></div>
+            <div class="phone-contact-num" style="color:var(--cyan)">+${lb} LORE / session</div>
+            <div style="display:flex;align-items:center;gap:0.3rem;margin-top:2px">
+              <div style="width:36px;height:2px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+                <div style="width:${curSat}%;height:100%;background:${satColor};border-radius:2px"></div>
+              </div>
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.38rem;color:${satColor}">${curSat}%</span>
+            </div>
           </div>
-          <div class="phone-contact-note">${c.aesthetic || ''}</div>
+          <div class="phone-contact-note">${c.aesthetic || c.personality || ''}</div>
         </div>
-      `).join('')}
+      `}).join('')}
     `;
 
   } else if (tab === 'circuit') {
@@ -803,9 +1374,13 @@ function renderPhoneContent(tab) {
     const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
     const lore = SState.get('lore');
     const tier = currentLoreTier();
+    const debt = SState.get('debt') || 0;
+    const anger = SState.get('tonyAnger') || 0;
+    const ft = fatTonyData();
+
     content.innerHTML = `
       <div class="phone-bank">
-        <div class="phone-bank-header">${S.phone.bankName || 'ROYALE BANK'}</div>
+        <div class="phone-bank-header">${(S.phone && S.phone.bankName) || 'ROYALE BANK'}</div>
         <div class="phone-bank-balance">
           <div class="phone-bank-label">Chip Balance</div>
           <div class="phone-bank-amount">$${smFmt(bankroll)}</div>
@@ -827,6 +1402,43 @@ function renderPhoneContent(tab) {
           <span>Hand Wins</span>
           <span>${SState.get('handWins') || 0}</span>
         </div>
+        ${debt > 0 ? `
+        <div class="phone-bank-divider"></div>
+        <div style="background:rgba(224,48,64,0.06);border:1px solid rgba(224,48,64,0.2);border-radius:2px;padding:0.5rem 0.6rem;margin-top:0.3rem">
+          <div style="font-family:'Cinzel',serif;font-size:0.45rem;letter-spacing:0.25em;color:#e03040;text-transform:uppercase;margin-bottom:0.3rem">Fat Tony — Outstanding Debt</div>
+          <div class="phone-bank-row" style="border:none;padding:0.15rem 0">
+            <span>Principal</span>
+            <span style="color:#e03040">$${smFmt(debt)}</span>
+          </div>
+          <div class="phone-bank-row" style="border:none;padding:0.15rem 0">
+            <span>Anger</span>
+            <div style="display:flex;align-items:center;gap:0.3rem">
+              <div style="width:40px;height:3px;background:rgba(224,48,64,0.15);border-radius:2px;overflow:hidden">
+                <div style="width:${anger*10}%;height:100%;background:#e03040;transition:width 0.4s"></div>
+              </div>
+              <span style="color:#e03040;font-size:0.48rem">${anger}/10</span>
+            </div>
+          </div>
+          <button onclick="window._tonyRepayFromPhone()" style="
+            width:100%;margin-top:0.4rem;font-family:'Cinzel',serif;font-size:0.48rem;
+            letter-spacing:0.12em;text-transform:uppercase;color:#e03040;
+            border:1px solid rgba(224,48,64,0.3);padding:0.35rem;border-radius:2px;
+            background:rgba(224,48,64,0.08);cursor:pointer;transition:all 0.2s">
+            Repay Tony
+          </button>
+        </div>` : `
+        <div class="phone-bank-row" style="border-top:1px solid rgba(201,168,76,0.06);margin-top:0.3rem">
+          <span style="color:rgba(245,240,232,0.25)">Fat Tony</span>
+          <span style="color:rgba(74,222,128,0.5);font-size:0.5rem">No debt ✓</span>
+        </div>`}
+        <div class="phone-bank-divider"></div>
+        <button onclick="window._phoneTonyLoan()" style="
+          width:100%;font-family:'Cinzel',serif;font-size:0.48rem;
+          letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,240,232,0.35);
+          border:1px solid rgba(255,255,255,0.06);padding:0.35rem;border-radius:2px;
+          background:transparent;cursor:pointer;transition:all 0.2s">
+          ${debt > 0 ? 'Borrow more (risky)' : 'Borrow from Tony'}
+        </button>
       </div>
     `;
   }
@@ -858,17 +1470,25 @@ window.openPhoneChat = function(contactId) {
 
   // Check if this is a companion
   const comp = getCompanion(contactId);
-  const presets = comp ? (S.companions.presetTexts || []) : [];
+  const presets = comp ? (comp.presetTexts || S.companions.presetTexts || []) : [];
 
   // P2: Avatar in chat header
   const avatarHtml = companionAvatarHTML(contactId, cname, '1.8rem');
 
   const thread = (SState.get('messageThreads')[contactId] || []);
+
+  // PHASE-3: Convo choices for companions
+  const convoChoices = comp ? buildConvoChoices(contactId) : [];
+  const sat = SState.get('companionSatisfaction') || {};
+  const curSat = sat[contactId] != null ? sat[contactId] : 100;
+  const satColor = curSat > 60 ? 'var(--cyan)' : curSat > 30 ? '#facc15' : '#e03040';
+
   content.innerHTML = `
     <div class="phone-chat-header" style="gap:0.5rem">
       <button class="phone-chat-back" onclick="switchPhoneTab('messages')">← Back</button>
       ${avatarHtml}
       <span class="phone-chat-name">${cname}</span>
+      ${comp ? `<span style="font-family:'Share Tech Mono',monospace;font-size:0.42rem;color:${satColor};margin-left:auto">${curSat}%</span>` : ''}
     </div>
     <div class="phone-chat-messages" id="phone-chat-msgs">
       ${thread.map(m => `
@@ -877,7 +1497,24 @@ window.openPhoneChat = function(contactId) {
         </div>
       `).join('')}
     </div>
-    ${presets.length ? `
+    ${comp && convoChoices.length ? `
+    <div class="phone-chat-presets" style="gap:0.3rem">
+      <div style="font-family:'Cinzel',serif;font-size:0.4rem;letter-spacing:0.15em;color:rgba(0,229,255,0.3);text-transform:uppercase;padding:0.2rem 0.3rem 0">Conversation</div>
+      ${convoChoices.map((c, i) => `
+        <button class="phone-preset-btn" onclick="window.sendConvoChoice('${contactId}', ${i})"
+          style="display:flex;justify-content:space-between;align-items:center">
+          <span>${c.label}</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.42rem;
+            color:${c.lore >= 0 ? 'var(--cyan)' : '#e03040'};opacity:0.7">
+            ${c.lore >= 0 ? '+' : ''}${c.lore} LORE · sat ${c.satDelta >= 0 ? '+' : ''}${c.satDelta}%
+          </span>
+        </button>
+      `).join('')}
+      ${presets.length ? `<div style="font-family:'Cinzel',serif;font-size:0.4rem;letter-spacing:0.15em;color:rgba(0,229,255,0.3);text-transform:uppercase;padding:0.3rem 0.3rem 0">Quick Texts</div>` : ''}
+      ${presets.slice(0, 3).map((t, i) => `
+        <button class="phone-preset-btn" onclick="sendPresetText('${contactId}', ${i})">${t}</button>
+      `).join('')}
+    </div>` : presets.length ? `
     <div class="phone-chat-presets">
       ${presets.slice(0, 4).map((t, i) => `
         <button class="phone-preset-btn" onclick="sendPresetText('${contactId}', ${i})">${t}</button>
@@ -886,6 +1523,50 @@ window.openPhoneChat = function(contactId) {
   `;
   const chatEl = document.getElementById('phone-chat-msgs');
   if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
+};
+
+// PHASE-3: Conversation choice handler — good/flirt/disrespect
+window.sendConvoChoice = function(contactId, choiceIdx) {
+  const comp = getCompanion(contactId);
+  if (!comp) return;
+  const choices = buildConvoChoices(contactId);
+  const choice = choices[choiceIdx];
+  if (!choice) return;
+
+  // Apply lore delta
+  if (choice.lore > 0) {
+    earnLore(choice.lore, comp.name + ' convo');
+    onCompanionLoreEarn(contactId, choice.lore);
+    showLoreToast('+' + choice.lore + ' LORE · ' + comp.name);
+  } else if (choice.lore < 0) {
+    const was = SState.get('lore');
+    SState.set('lore', Math.max(0, was + choice.lore));
+    renderLoreBar();
+    showLoreToast(choice.lore + ' LORE · ' + comp.name + ' unhappy');
+  }
+
+  // Apply satisfaction delta
+  const sat = SState.get('companionSatisfaction') || {};
+  sat[contactId] = Math.max(0, Math.min(100, (sat[contactId] != null ? sat[contactId] : 100) + choice.satDelta));
+  SState.set('companionSatisfaction', sat);
+
+  // Add messages to thread
+  const threads = SState.get('messageThreads');
+  if (!threads[contactId]) threads[contactId] = [];
+  threads[contactId].push({ from: 'Me', text: choice.label, ts: Date.now() });
+
+  // Companion replies with her relevant line
+  const replyText = choice.text || (comp.intro || '...');
+  setTimeout(() => {
+    const t2 = SState.get('messageThreads');
+    if (!t2[contactId]) t2[contactId] = [];
+    t2[contactId].push({ from: comp.name, text: replyText, ts: Date.now() + 100 });
+    SState.set('messageThreads', t2);
+    window.openPhoneChat(contactId);
+  }, 900);
+
+  SState.set('messageThreads', threads);
+  window.openPhoneChat(contactId);
 };
 
 window.sendPresetText = function(contactId, presetIdx) {
@@ -912,6 +1593,18 @@ window.sendPresetText = function(contactId, presetIdx) {
 
   SState.set('messageThreads', threads);
   window.openPhoneChat(contactId);
+};
+
+// PHASE-3: Phone bank Tony helpers
+window._phoneTonyLoan = function() {
+  if (typeof closeModal !== 'undefined') closeModal();
+  showFatTonyModal();
+};
+window._tonyRepayFromPhone = function() {
+  const debt = SState.get('debt') || 0;
+  const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
+  if (debt <= 0) { showLoreToast('No debt.'); return; }
+  showTonyRepayModal();
 };
 
 // P2: Circuit app inside the phone
@@ -1046,43 +1739,89 @@ function renderCompanionGrid() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  const roster = S.companions.roster || [];
+  const rosterRaw = Array.isArray(S.companions) ? S.companions : (S.companions.roster || []);
   const selected = SState.get('selectedCompanionId');
+  const loyaltyBroken = SState.get('loyaltyBroken');
 
-  roster.forEach(comp => {
+  // PHASE-3: loyalty data
+  const loyalty = (window.STORY && window.STORY.loyalty) ? window.STORY.loyalty : null;
+  const normalGirlId = (loyalty && loyalty.normalGirlId) ? loyalty.normalGirlId : 'cassidy';
+
+  rosterRaw.forEach(comp => {
     const card = document.createElement('div');
     card.className = 'companion-card' + (selected === comp.id ? ' selected' : '');
-    // P2: Use companion portrait image with initial fallback
     const knownCompanions = ['jade','nova','soleil','reign','cassidy'];
     const isKnown = knownCompanions.includes((comp.id || '').toLowerCase());
     const imgSrc = isKnown ? `assets/companions/${comp.id.toLowerCase()}.png` : `assets/companions/${comp.id}.png`;
     const initials = (comp.name || '?')[0].toUpperCase();
 
+    // PHASE-3: tier badge
+    const tier = getCompanionTier(comp);
+    const tierLabel = tier === 'supermodel' ? 'Supermodel' : tier === 'model' ? 'Model' : 'Normal';
+    const tierColor = tier === 'supermodel' ? '#f87171' : tier === 'model' ? 'var(--cyan)' : 'var(--gold-dim)';
+    const tierBg = tier === 'supermodel' ? 'rgba(248,113,113,0.12)' : tier === 'model' ? 'rgba(0,229,255,0.1)' : 'rgba(201,168,76,0.06)';
+
+    // PHASE-3: loyalty label for cassidy
+    const isCassidy = comp.id === normalGirlId;
+    const loyaltyNote = isCassidy && !loyaltyBroken ? '⭐ Max LORE if loyal' : (isCassidy && loyaltyBroken ? '⚠ Loyalty lost' : '');
+    const loyaltyColor = isCassidy && !loyaltyBroken ? 'var(--gold)' : '#e03040';
+
+    // Satisfaction bar
+    const sat = SState.get('companionSatisfaction') || {};
+    const curSat = sat[comp.id] != null ? sat[comp.id] : 100;
+    const satColor = curSat > 60 ? 'var(--cyan)' : curSat > 30 ? '#facc15' : '#e03040';
+
+    // PHASE-3: loreBonus — handle v1 and v2 schema
+    const loreBonus = comp.baseLoreBonus != null ? comp.baseLoreBonus : (comp.loreBonus || 0);
+
     card.innerHTML = `
-      <div class="companion-card-inner">
-        <div class="companion-avatar" style="padding:0;overflow:hidden;background:linear-gradient(135deg,rgba(40,20,10,0.8),rgba(10,5,20,0.8))">
+      <div class="companion-card-inner" style="align-items:flex-start;gap:0.9rem">
+        <!-- PHASE-3: Bigger portrait -->
+        <div style="width:4.5rem;height:5.5rem;border-radius:4px;overflow:hidden;
+          border:1px solid rgba(201,168,76,0.3);flex-shrink:0;
+          background:linear-gradient(135deg,rgba(40,20,10,0.8),rgba(10,5,20,0.8));
+          box-shadow:0 0 14px rgba(201,168,76,0.12)">
           <img src="${imgSrc}" alt="${initials}"
-            style="width:100%;height:100%;object-fit:cover;object-position:top"
+            style="width:100%;height:100%;object-fit:cover;object-position:top;display:block"
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-          <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1.2rem;color:var(--gold)">${initials}</span>
+          <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;
+            font-family:'Cinzel Decorative',serif;font-size:1.4rem;color:var(--gold)">${initials}</span>
         </div>
-        <div class="companion-info">
-          <div class="companion-name">${comp.name}</div>
-          <div class="companion-aesthetic">${comp.aesthetic}</div>
-          <div class="companion-lore-bonus">+${comp.loreBonus} LORE / session</div>
-          <div class="companion-intro">"${comp.intro}"</div>
+        <div class="companion-info" style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.25rem">
+            <div class="companion-name" style="margin-bottom:0">${comp.name}</div>
+            <span style="font-family:'Cinzel',serif;font-size:0.38rem;letter-spacing:0.1em;
+              color:${tierColor};background:${tierBg};border:1px solid ${tierColor};
+              opacity:0.9;padding:0.1rem 0.4rem;border-radius:2px;text-transform:uppercase">${tierLabel}</span>
+          </div>
+          ${loyaltyNote ? `<div style="font-family:'Share Tech Mono',monospace;font-size:0.42rem;color:${loyaltyColor};margin-bottom:0.2rem">${loyaltyNote}</div>` : ''}
+          <div class="companion-aesthetic">${comp.aesthetic || (comp.personality || '')}</div>
+          <div class="companion-lore-bonus">+${loreBonus} LORE / session</div>
+          <div class="companion-intro">"${comp.intro || ''}"</div>
+          ${selected === comp.id ? `
+          <div style="margin-top:0.35rem">
+            <div style="display:flex;align-items:center;gap:0.35rem">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.42rem;color:rgba(245,240,232,0.3)">Satisfaction</span>
+              <div style="flex:1;height:3px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden">
+                <div style="width:${curSat}%;height:100%;background:${satColor};border-radius:2px;transition:width 0.5s"></div>
+              </div>
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.42rem;color:${satColor}">${curSat}%</span>
+            </div>
+          </div>` : ''}
         </div>
         ${selected === comp.id ? '<div class="companion-check">✓ With You</div>' : ''}
       </div>
     `;
     card.addEventListener('click', () => {
+      // PHASE-3: handle tier/loyalty on select
+      handleCompanionSelect(comp.id);
       SState.set('selectedCompanionId', comp.id);
       renderCompanionGrid();
       renderCompanionBtn();
       // Auto-seed message thread
       const threads = SState.get('messageThreads');
       if (!threads[comp.id]) {
-        threads[comp.id] = [{ from: comp.name, text: comp.intro, ts: Date.now() }];
+        threads[comp.id] = [{ from: comp.name, text: comp.intro || '', ts: Date.now() }];
         SState.set('messageThreads', threads);
       }
     });
@@ -1270,25 +2009,33 @@ function onRoundEnd(outcome, payout, bet) {
 
   const dizzy = SState.get('drinksDizzy');
 
+  // PHASE-3: track hands for companion needs
+  const handsThisVenue = (SState.get('handsThisVenue') || 0) + 1;
+  SState.set('handsThisVenue', handsThisVenue);
+
   if (outcome === 'win' || outcome === 'bj') {
     // Lore from win
     earnLore(1, 'win');
+    // PHASE-3: if companion with us, track cassidy lore
+    const compId = SState.get('selectedCompanionId');
+    if (compId) onCompanionLoreEarn(compId, 1);
+
     SState.set('handWins', (SState.get('handWins') || 0) + 1);
     const streak = (SState.get('handStreak') || 0) + 1;
     SState.set('handStreak', streak);
 
-    // Big win dialog
+    // Big win dialog — PHASE-3: per-character
     if (payout >= (bet || 100) * 3) {
       const cityId = SState.get('currentCityId');
       const city = cityId ? getCity(cityId) : null;
       const agentId = city?.rival?.agent || (typeof State !== 'undefined' ? State.get('agentId') : 'SHADDAI');
-      const line = pick(S.dialog.bigWin || ['Stack it.']);
+      const line = getDialogLine('bigWin') || 'Stack it.';
       showDialogBubble(agentId, agentId, line);
     }
 
-    // Win streak dialog
+    // Win streak dialog — PHASE-3: per-character
     if (streak >= 3 && streak % 3 === 0) {
-      const line = pick(S.dialog.winStreak || ["Can't cool down right now."]);
+      const line = getDialogLine('winStreak') || "Can't cool down right now.";
       const cityId = SState.get('currentCityId');
       const city = cityId ? getCity(cityId) : null;
       const agentId = city?.rival?.agent || 'SHADDAI';
@@ -1307,32 +2054,35 @@ function onRoundEnd(outcome, payout, bet) {
       const cityId = SState.get('currentCityId');
       const city = cityId ? getCity(cityId) : null;
       const agentId = city?.rival?.agent || 'SHADDAI';
-      const line = pick(S.dialog.bigLoss || ["Reload. Regroup. Return."]);
+      const line = getDialogLine('bigLoss') || 'Reload. Regroup. Return.';
       showDialogBubble(agentId, agentId, line);
     }
   } else if (outcome === 'push') {
-    const line = pick(S.dialog.push || ['Push. Nobody wins, nobody bleeds.']);
+    const line = getDialogLine('push') || 'Push. Nobody wins, nobody bleeds.';
     const cityId = SState.get('currentCityId');
     const city = cityId ? getCity(cityId) : null;
     showDialogBubble(city?.rival?.name || 'Dealer', city?.rival?.agent || '', line);
   }
 
-  // Drunk dialog
+  // Drunk dialog — PHASE-3: per-character
   if (dizzy >= 3 && Math.random() < 0.35) {
-    const line = pick(S.dialog.drunk || ['Hazy but focused.']);
+    const line = getDialogLine('drunk') || 'Hazy but focused.';
     showDialogBubble('The Table', '', line);
   }
 
-  // Dealer taunt (random, low chance)
+  // Dealer taunt (random, low chance) — PHASE-3: per-character
   if (Math.random() < 0.12) {
     const cityId = SState.get('currentCityId');
     const city = cityId ? getCity(cityId) : null;
     const boss = cityId ? (CITY_BOSS_MAP[cityId] || {}) : {};
-    const taunt = city?.rival?.taunt || boss.taunt || pick(S.dialog.dealerTaunt || ['The house has something to say.']);
+    const taunt = getDialogLine('dealerTaunt') || city?.rival?.taunt || boss.taunt || 'The house has something to say.';
     const dealerName = city?.rival?.name || boss.name || 'Dealer';
     const dealerAgent = city?.rival?.agent || boss.agentId || (typeof State !== 'undefined' ? State.get('agentId') : '');
     showDialogBubble(dealerName, dealerAgent, taunt);
   }
+
+  // PHASE-3: companion needs check
+  checkCompanionNeeds(handsThisVenue);
 
   // Update drinks bar dizzy
   renderDrinksBar(true);
@@ -1346,9 +2096,9 @@ function onRoundEnd(outcome, payout, bet) {
 
 function showDialog(moment) {
   // Called by ui.js for explicit moments (e.g. blackjack)
-  const lines = S.dialog[moment] || [];
-  if (!lines.length) return;
-  const line = pick(lines);
+  // PHASE-3: use per-character byAgent lines with generic fallback
+  const line = getDialogLine(moment);
+  if (!line) return;
   const cityId = SState.get('currentCityId');
   const city = cityId ? getCity(cityId) : null;
   const agentId = city?.rival?.agent || (typeof State !== 'undefined' ? State.get('agentId') : '');
@@ -1442,4 +2192,9 @@ window.StoryMode = {
   drinkWater,
   renderCompanionAtTable,
   applyDialogPosition,
+  // PHASE-3 additions
+  showFatTonyModal,
+  repayTonyLoan,
+  updateTonyHud,
+  getDialogLine,
 };
