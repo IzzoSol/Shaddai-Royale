@@ -1,0 +1,4 @@
+
+# runtime persistence (do not commit user saves / passwords)
+data/saves.json
+data/leaderboard.json

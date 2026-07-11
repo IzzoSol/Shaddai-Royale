@@ -58,6 +58,10 @@ const SState = (() => {
     handWins: 0,
     handStreak: 0,
     phase: 'underground',        // 'underground' | 'circuit'
+    // ── RUN STATS (leaderboard) ────────────────────────────
+    handsThisRun: 0,             // total hands played this Story run
+    usedLoanEver: false,         // set true the moment any Tony loan is taken
+    runAgentId: null,            // agent chosen for this run (for lb submission)
     // ── PHASE-3 additions ──────────────────────────────────
     debt: 0,                     // Fat Tony debt principal
     tonyAnger: 0,                // 0–10 anger meter
@@ -295,6 +299,8 @@ window.takeTonyLoan = function(amount) {
   SState.set('debt', newDebt);
   SState.set('loanActive', true);
   SState.set('citiesSinceLoan', 0);
+  // ── Run stat: mark loan ever used ─────────────────────
+  SState.set('usedLoanEver', true);
   if (typeof State !== 'undefined') {
     State.set('bankroll', (State.get('bankroll') || 0) + amount);
   }
@@ -941,6 +947,8 @@ window._startWithLoan = function(amount) {
   SState.set('citiesSinceLoan', 0);
   SState.set('startChoiceMade', true);
   SState.set('startChoice', 'loan');
+  // ── Run stat: mark loan ever used ─────────────────────
+  SState.set('usedLoanEver', true);
   earnLore(2, 'Tony\'s money — street cred');
   if (typeof renderBankroll !== 'undefined') renderBankroll();
   if (typeof updateTonyHud !== 'undefined') updateTonyHud();
@@ -1547,6 +1555,43 @@ function renderPhoneContent(tab) {
       `;
     }
     content.innerHTML = html;
+
+  } else if (tab === 'cloud') {
+    // Cloud save / load and leaderboard access via phone
+    const handsThisRun = SState.get('handsThisRun') || 0;
+    const beaten = (SState.get('beatCities') || []).length;
+    content.innerHTML = `
+      <div style="padding:0.8rem 0.5rem 0.5rem">
+        <div class="phone-section-title">VAULT — Cloud Save</div>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.4rem">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:rgba(245,240,232,0.35);margin-bottom:0.2rem">
+            Hands this run: <span style="color:var(--cyan)">${handsThisRun}</span> · Cities cleared: <span style="color:#4ade80">${beaten}/5</span>
+          </div>
+          <button onclick="window.Vault.open('save')" style="
+            width:100%;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.15em;
+            text-transform:uppercase;color:var(--navy);
+            background:linear-gradient(135deg,var(--gold-bright),var(--gold));
+            padding:0.6rem;border-radius:2px;cursor:pointer;border:none;margin-bottom:0.2rem">
+            ⬡ Save to Cloud
+          </button>
+          <button onclick="window.Vault.open('load')" style="
+            width:100%;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.15em;
+            text-transform:uppercase;color:var(--gold-dim);
+            border:1px solid rgba(201,168,76,0.2);padding:0.6rem;border-radius:2px;
+            background:rgba(201,168,76,0.04);cursor:pointer;margin-bottom:0.5rem">
+            ↓ Load Cloud Save
+          </button>
+          <div class="phone-bank-divider"></div>
+          <button onclick="window.Leaderboard && window.Leaderboard.show('screen-phone')" style="
+            width:100%;font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.15em;
+            text-transform:uppercase;color:rgba(245,240,232,0.35);
+            border:1px solid rgba(255,255,255,0.06);padding:0.5rem;border-radius:2px;
+            background:transparent;cursor:pointer">
+            ♔ Leaderboard
+          </button>
+        </div>
+      </div>`;
+    return;
 
   } else if (tab === 'bank') {
     const bankroll = typeof State !== 'undefined' ? State.get('bankroll') : 0;
@@ -2190,6 +2235,12 @@ function onRoundEnd(outcome, payout, bet) {
 
   const dizzy = SState.get('drinksDizzy');
 
+  // ── Run stat: increment total hands for this Story run ──
+  SState.set('handsThisRun', (SState.get('handsThisRun') || 0) + 1);
+
+  // ── Run stat: keep agent synced (may change between runs) ──
+  if (typeof State !== 'undefined') SState.set('runAgentId', State.get('agentId') || 'SHADDAI');
+
   // PHASE-3: track hands for companion needs
   const handsThisVenue = (SState.get('handsThisVenue') || 0) + 1;
   SState.set('handsThisVenue', handsThisVenue);
@@ -2332,13 +2383,31 @@ function checkCityVictory() {
       beaten.push(cityId);
       SState.set('beatCities', beaten);
       earnLore(25, city.name + ' cleared');
+
+      // ── Check if ALL 5 cities are now beaten (full circuit complete) ──
+      const allCities = S.cities || [];
+      const allBeaten = allCities.length > 0 && allCities.every(c => beaten.includes(c.id));
+
       // Victory cutscene after short delay
       setTimeout(() => {
         showCutscene('victory', city, () => {
           _currentCity = null;
           SState.set('currentCityId', null);
           SState.set('tableWinnings', 0);
-          showCircuit();
+
+          if (allBeaten) {
+            // Full circuit complete — trigger win submit overlay
+            const handsThisRun = SState.get('handsThisRun') || 0;
+            const usedLoanEver = SState.get('usedLoanEver') || false;
+            const agent = SState.get('runAgentId') || (typeof State !== 'undefined' ? State.get('agentId') : 'SHADDAI');
+            if (typeof window.WinSubmit !== 'undefined') {
+              window.WinSubmit.show(handsThisRun, usedLoanEver, agent);
+            } else {
+              showCircuit();
+            }
+          } else {
+            showCircuit();
+          }
         });
       }, 1500);
     }
@@ -2406,6 +2475,12 @@ window.StoryMode = {
   repayTonyLoan,
   updateTonyHud,
   getDialogLine,
+  // Leaderboard helpers (accessed by WinSubmit in ui.js)
+  getRunStats: () => ({
+    handsThisRun: SState.get('handsThisRun') || 0,
+    usedLoanEver: SState.get('usedLoanEver') || false,
+    agent: SState.get('runAgentId') || (typeof State !== 'undefined' ? State.get('agentId') : 'SHADDAI'),
+  }),
 };
 
 // Expose nav helpers so ui.js btn-table-back can use the same stack

@@ -2,12 +2,62 @@ const express = require('express');
 const cors = require('cors');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs');
+const fsp = fs.promises;
+const pathMod = require('path');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 // serve the game frontend (index.html + any assets) at the root
-app.use(express.static(require('path').join(__dirname)));
+app.use(express.static(pathMod.join(__dirname)));
+
+// ── persistence: password saves + leaderboard (JSON files) ──
+const DATA_DIR = pathMod.join(__dirname, 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const SAVES_FILE = pathMod.join(DATA_DIR, 'saves.json');
+const LB_FILE = pathMod.join(DATA_DIR, 'leaderboard.json');
+const readJson = async (f, def) => { try { return JSON.parse(await fsp.readFile(f, 'utf8')); } catch { return def; } };
+const writeJson = (f, d) => fsp.writeFile(f, JSON.stringify(d));
+const hashPw = p => crypto.createHash('sha256').update(String(p)).digest('hex');
+const norm = n => String(n || '').toLowerCase().trim().slice(0, 40);
+
+// Save persistent progress (create-or-update; password-protected per name).
+app.post('/api/save', async (req, res) => {
+  const { name, password, state } = req.body || {};
+  if (!norm(name) || !password) return res.status(400).json({ ok: false, error: 'name and password required' });
+  const saves = await readJson(SAVES_FILE, {});
+  const key = norm(name);
+  if (saves[key] && saves[key].pw !== hashPw(password)) return res.status(401).json({ ok: false, error: 'wrong password' });
+  saves[key] = { pw: hashPw(password), name: String(name).slice(0, 40), state, updated: Date.now() };
+  await writeJson(SAVES_FILE, saves);
+  res.json({ ok: true });
+});
+// Load a save (name + password).
+app.post('/api/load', async (req, res) => {
+  const { name, password } = req.body || {};
+  const saves = await readJson(SAVES_FILE, {});
+  const rec = saves[norm(name)];
+  if (!rec) return res.status(404).json({ ok: false, error: 'no save for that name' });
+  if (rec.pw !== hashPw(password)) return res.status(401).json({ ok: false, error: 'wrong password' });
+  res.json({ ok: true, state: rec.state, updated: rec.updated });
+});
+// Submit a completion to the leaderboard.
+app.post('/api/leaderboard', async (req, res) => {
+  const { name, hands, usedLoan, agent } = req.body || {};
+  if (!norm(name) || !(Number(hands) > 0)) return res.status(400).json({ ok: false });
+  const lb = await readJson(LB_FILE, []);
+  lb.push({ name: String(name).slice(0, 24), hands: Math.round(Number(hands)), usedLoan: !!usedLoan, agent: String(agent || '?').slice(0, 12), date: Date.now() });
+  await writeJson(LB_FILE, lb.slice(-2000));
+  res.json({ ok: true });
+});
+// Read the leaderboard (two categories, fewest hands first).
+app.get('/api/leaderboard', async (_req, res) => {
+  const lb = await readJson(LB_FILE, []);
+  const top = arr => arr.slice().sort((a, b) => a.hands - b.hands).slice(0, 50);
+  res.json({ noLoan: top(lb.filter(e => !e.usedLoan)), withLoan: top(lb.filter(e => e.usedLoan)) });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });

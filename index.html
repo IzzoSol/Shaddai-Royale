@@ -34,6 +34,12 @@
     <button id="btn-splash-play" class="splash-play-btn">Enter the Table</button>
 
     <p class="splash-tagline">"Fortune favours the bold — and the prepared."</p>
+
+    <!-- Cloud Save & Leaderboard entry on splash -->
+    <div class="splash-utility-row">
+      <button class="splash-util-btn" id="btn-splash-vault" title="Cloud Save / Load">⬡ Cloud Save</button>
+      <button class="splash-util-btn" id="btn-splash-lb" title="Leaderboard">♔ Leaderboard</button>
+    </div>
   </section>
 
 
@@ -67,6 +73,12 @@
         <h3>Arcade</h3>
         <p>Pure blackjack, no limits. Perfect for practicing your edge at any hour.</p>
       </div>
+    </div>
+
+    <!-- Mode screen utility row -->
+    <div class="mode-utility-row">
+      <button class="mode-util-btn" id="btn-mode-vault">⬡ Cloud Save</button>
+      <button class="mode-util-btn" id="btn-mode-lb">♔ Leaderboard</button>
     </div>
   </section>
 
@@ -274,6 +286,7 @@
             <button class="phone-tab" data-tab="messages" onclick="switchPhoneTab('messages',this)">Messages</button>
             <button class="phone-tab" data-tab="circuit" onclick="switchPhoneTab('circuit',this)">Circuit</button>
             <button class="phone-tab" data-tab="bank" onclick="switchPhoneTab('bank',this)">Bank</button>
+            <button class="phone-tab" data-tab="cloud" onclick="switchPhoneTab('cloud',this)">Cloud</button>
           </div>
           <div class="phone-content" id="phone-content"></div>
         </div>
@@ -538,6 +551,109 @@
       <div class="modal-body" id="modal-body"></div>
       <div class="divider-gold" style="margin:1rem 0 0.6rem"></div>
       <button class="btn-gold-primary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       VAULT OVERLAY — Save / Load Game
+       ══════════════════════════════════════════════════════ -->
+  <div id="vault-overlay" class="vault-overlay" style="display:none" aria-modal="true" role="dialog">
+    <div class="vault-panel">
+      <!-- Header -->
+      <div class="vault-header">
+        <div class="vault-icon-wrap">
+          <svg class="vault-dial" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="32" r="30" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.4"/>
+            <circle cx="32" cy="32" r="22" stroke="var(--gold)" stroke-width="1" opacity="0.25"/>
+            <circle cx="32" cy="32" r="8" fill="rgba(201,168,76,0.12)" stroke="var(--gold)" stroke-width="1.5"/>
+            <line x1="32" y1="24" x2="32" y2="12" stroke="var(--gold-bright)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="vault-title-block">
+          <div class="vault-eyebrow">Cloud Save</div>
+          <div class="vault-title">THE VAULT</div>
+        </div>
+        <button class="vault-close-btn" id="btn-vault-close" aria-label="Close">✕</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="vault-tabs">
+        <button class="vault-tab active" id="vault-tab-save" onclick="switchVaultTab('save',this)">Save Game</button>
+        <button class="vault-tab" id="vault-tab-load" onclick="switchVaultTab('load',this)">Load Game</button>
+      </div>
+
+      <!-- Tab content -->
+      <div class="vault-body" id="vault-body">
+        <!-- injected by JS -->
+      </div>
+
+      <!-- Status message -->
+      <div class="vault-status" id="vault-status" style="display:none"></div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       LEADERBOARD SCREEN
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-leaderboard" class="screen" style="justify-content:flex-start;padding:0;overflow-y:auto">
+    <div class="lb-bg"></div>
+
+    <div class="lb-header">
+      <div class="lb-eyebrow">Hall of Legends</div>
+      <div class="lb-title">SHADDAI ROYALE</div>
+      <div class="lb-sub">Fewest hands to conquer the circuit</div>
+    </div>
+
+    <!-- Tab strip — ticket stub style -->
+    <div class="lb-tab-strip">
+      <button class="lb-tab active" id="lb-tab-purist" onclick="switchLbTab('noLoan',this)">
+        <span class="lb-tab-icon">♠</span>
+        <span class="lb-tab-label">Purist</span>
+        <span class="lb-tab-note">No Loan</span>
+      </button>
+      <div class="lb-tab-divider"></div>
+      <button class="lb-tab" id="lb-tab-loan" onclick="switchLbTab('withLoan',this)">
+        <span class="lb-tab-icon">$</span>
+        <span class="lb-tab-label">With Loan</span>
+        <span class="lb-tab-note">Fat Tony</span>
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div class="lb-table-wrap">
+      <div class="lb-table" id="lb-table">
+        <div class="lb-loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Footer nav -->
+    <div class="lb-footer">
+      <button class="back-btn" id="btn-lb-back">← Back</button>
+      <button class="lb-refresh-btn" id="btn-lb-refresh" onclick="refreshLeaderboard()">↻ Refresh</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       WIN SUBMIT OVERLAY — Name entry on game complete
+       ══════════════════════════════════════════════════════ -->
+  <div id="win-submit-overlay" class="win-submit-overlay" style="display:none">
+    <div class="win-submit-panel">
+      <div class="win-submit-confetti" id="win-submit-confetti"></div>
+      <div class="win-submit-icon">♔</div>
+      <div class="win-submit-title">YOU CONQUERED THE CIRCUIT</div>
+      <div class="win-submit-sub" id="win-submit-sub">Five cities. One throne. Enter your name for the Hall of Legends.</div>
+      <div class="win-submit-field-wrap">
+        <label class="win-submit-label" for="win-submit-name">Display Name</label>
+        <input id="win-submit-name" class="win-submit-input" type="text" maxlength="20" placeholder="Enter your name…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="win-submit-actions">
+        <button class="win-submit-btn-primary" id="btn-win-submit">Submit to Leaderboard</button>
+        <button class="win-submit-btn-skip" id="btn-win-skip">Skip — just show me the board</button>
+      </div>
+      <div class="win-submit-status" id="win-submit-status" style="display:none"></div>
     </div>
   </div>
 

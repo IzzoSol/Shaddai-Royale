@@ -1646,6 +1646,390 @@ function initSettingsScreen() {
 window.State = State;
 window.Audio_SR = Audio; // expose Sound as Audio_SR to avoid collision
 
+// ── VAULT (Cloud Save / Load) ────────────────────────────────
+const Vault = (() => {
+  let _vaultTab = 'save';
+
+  function open(initialTab) {
+    _vaultTab = initialTab || 'save';
+    const el = document.getElementById('vault-overlay');
+    if (!el) return;
+    el.style.display = 'flex';
+    _renderVaultTab(_vaultTab);
+    document.querySelectorAll('.vault-tab').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.getElementById('vault-tab-' + _vaultTab);
+    if (activeBtn) activeBtn.classList.add('active');
+    const closeBtn = document.getElementById('btn-vault-close');
+    if (closeBtn) closeBtn.onclick = close;
+    el.onclick = (e) => { if (e.target === el) close(); };
+  }
+
+  function close() {
+    const el = document.getElementById('vault-overlay');
+    if (el) el.style.display = 'none';
+    _vaultStatus('', '');
+  }
+
+  function _vaultStatus(msg, type) {
+    const el = document.getElementById('vault-status');
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg;
+    el.className = 'vault-status ' + (type || '');
+    el.style.display = 'block';
+  }
+
+  function _buildPreview() {
+    const bankroll = State.get('bankroll') || 0;
+    const lore = (typeof window.StoryMode !== 'undefined') ? window.StoryMode.SState.get('lore') : 0;
+    const beaten = (typeof window.StoryMode !== 'undefined') ? (window.StoryMode.SState.get('beatCities') || []).length : 0;
+    const handsThisRun = (typeof window.StoryMode !== 'undefined') ? (window.StoryMode.SState.get('handsThisRun') || 0) : 0;
+    const agent = State.get('agentId') || 'SHADDAI';
+    return { bankroll, lore, beaten, handsThisRun, agent };
+  }
+
+  function _serialize() {
+    const sstate = (typeof window.StoryMode !== 'undefined') ? window.StoryMode.SState.get() : {};
+    const uistate = State.get();
+    return { sstate, uistate, savedAt: Date.now() };
+  }
+
+  function _renderVaultTab(tab) {
+    const body = document.getElementById('vault-body');
+    if (!body) return;
+
+    if (tab === 'save') {
+      const prev = _buildPreview();
+      body.innerHTML = `
+        <div class="vault-info-block">
+          <div class="vault-info-row"><span>Bankroll</span><span>$${fmt(prev.bankroll)}</span></div>
+          <div class="vault-info-row"><span>Street Rep</span><span>${prev.lore} LORE</span></div>
+          <div class="vault-info-row"><span>Cities Cleared</span><span>${prev.beaten} / 5</span></div>
+          <div class="vault-info-row"><span>Agent</span><span>${prev.agent}</span></div>
+          <div class="vault-info-row"><span>Hands This Run</span><span>${prev.handsThisRun}</span></div>
+        </div>
+        <div class="vault-field-row">
+          <label class="vault-field-label" for="vault-save-name">Save Name</label>
+          <input id="vault-save-name" class="vault-input" type="text" maxlength="20"
+            placeholder="Your handle…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="vault-field-row">
+          <label class="vault-field-label" for="vault-save-pw">Password</label>
+          <input id="vault-save-pw" class="vault-input" type="password" maxlength="40"
+            placeholder="Set a password…" autocomplete="new-password">
+        </div>
+        <div class="vault-action-row">
+          <button class="vault-btn-primary" id="vault-save-btn">Save to Cloud</button>
+          <button class="vault-btn-secondary" onclick="window.Vault.close()">Cancel</button>
+        </div>
+        <div style="text-align:center;margin-top:0.6rem">
+          <span class="vault-offline-badge">Local auto-save always active</span>
+        </div>`;
+      document.getElementById('vault-save-btn').onclick = _doSave;
+    } else {
+      body.innerHTML = `
+        <div class="vault-field-row">
+          <label class="vault-field-label" for="vault-load-name">Save Name</label>
+          <input id="vault-load-name" class="vault-input" type="text" maxlength="20"
+            placeholder="Your handle…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="vault-field-row">
+          <label class="vault-field-label" for="vault-load-pw">Password</label>
+          <input id="vault-load-pw" class="vault-input" type="password" maxlength="40"
+            placeholder="Your password…" autocomplete="current-password">
+        </div>
+        <div class="vault-action-row">
+          <button class="vault-btn-primary" id="vault-load-btn">Load from Cloud</button>
+          <button class="vault-btn-secondary" onclick="window.Vault.close()">Cancel</button>
+        </div>
+        <div style="text-align:center;margin-top:0.6rem">
+          <span class="vault-offline-badge">Restores run on all devices</span>
+        </div>`;
+      document.getElementById('vault-load-btn').onclick = _doLoad;
+    }
+  }
+
+  async function _doSave() {
+    const nameEl = document.getElementById('vault-save-name');
+    const pwEl   = document.getElementById('vault-save-pw');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const password = pwEl ? pwEl.value : '';
+    if (!name) { _vaultStatus('Please enter a save name.', 'err'); return; }
+    if (!password) { _vaultStatus('Please set a password.', 'err'); return; }
+    const btn = document.getElementById('vault-save-btn');
+    if (btn) btn.disabled = true;
+    _vaultStatus('Saving to cloud…', 'loading');
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password, state: _serialize() }),
+      });
+      if (res.status === 401) {
+        _vaultStatus('Wrong password for this save name.', 'err');
+      } else if (res.ok) {
+        _vaultStatus('Saved to cloud ✓', 'ok');
+        Audio.win();
+      } else {
+        _vaultStatus('Server error — local save still active.', 'err');
+      }
+    } catch(e) {
+      _vaultStatus('Offline — saved locally only.', 'err');
+    }
+    if (btn) btn.disabled = false;
+  }
+
+  async function _doLoad() {
+    const nameEl = document.getElementById('vault-load-name');
+    const pwEl   = document.getElementById('vault-load-pw');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const password = pwEl ? pwEl.value : '';
+    if (!name) { _vaultStatus('Please enter your save name.', 'err'); return; }
+    if (!password) { _vaultStatus('Please enter your password.', 'err'); return; }
+    const btn = document.getElementById('vault-load-btn');
+    if (btn) btn.disabled = true;
+    _vaultStatus('Loading from cloud…', 'loading');
+    try {
+      const res = await fetch('/api/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password }),
+      });
+      if (res.status === 401) {
+        _vaultStatus('Wrong password.', 'err');
+      } else if (res.status === 404) {
+        _vaultStatus('No save found. Start fresh or check the name.', 'err');
+      } else if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.state) {
+          _restoreState(data.state);
+          _vaultStatus('Run restored! Resuming your journey…', 'ok');
+          Audio.bj();
+          setTimeout(() => {
+            close();
+            if (typeof window.StoryMode !== 'undefined') {
+              const ss = window.StoryMode.SState;
+              if (ss.get('startChoiceMade')) {
+                if (ss.get('introSeen')) {
+                  if (ss.get('circuitUnlocked')) window.StoryMode.showCircuit();
+                  else window.StoryMode.showUnderground();
+                } else { window.StoryMode.showIntro(); }
+              } else { Router.go('screen-mode'); }
+            } else { Router.go('screen-mode'); }
+          }, 1400);
+        } else { _vaultStatus('Invalid save data.', 'err'); }
+      } else { _vaultStatus('Server error — try again.', 'err'); }
+    } catch(e) {
+      _vaultStatus('Offline — can\'t load cloud save right now.', 'err');
+    }
+    if (btn) btn.disabled = false;
+  }
+
+  function _restoreState(savedState) {
+    if (savedState.uistate) {
+      ['bankroll','bet','selectedBetChip','agentId','city','players','storyProgress','stats','settings'].forEach(k => {
+        if (savedState.uistate[k] !== undefined) State.set(k, savedState.uistate[k]);
+      });
+    }
+    if (savedState.sstate && typeof window.StoryMode !== 'undefined') {
+      const ss = window.StoryMode.SState;
+      Object.keys(savedState.sstate).forEach(k => ss.set(k, savedState.sstate[k]));
+    }
+  }
+
+  window.switchVaultTab = function(tab, btn) {
+    _vaultTab = tab;
+    document.querySelectorAll('.vault-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _renderVaultTab(tab);
+    _vaultStatus('', '');
+  };
+
+  return { open, close };
+})();
+
+window.Vault = Vault;
+
+// ── LEADERBOARD ──────────────────────────────────────────────
+const Leaderboard = (() => {
+  let _lbCategory = 'noLoan';
+  let _lbData = null;
+  let _lbPlayerName = null;
+
+  function show(returnScreen) {
+    Router.go('screen-leaderboard');
+    _lbCategory = 'noLoan';
+    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+    const pt = document.getElementById('lb-tab-purist');
+    if (pt) pt.classList.add('active');
+    const backBtn = document.getElementById('btn-lb-back');
+    if (backBtn) {
+      const _ret = returnScreen;
+      backBtn.onclick = () => {
+        if (_ret) { Router.go(_ret); }
+        else if (typeof window.NavStack !== 'undefined') {
+          const prev = window.NavStack.pop();
+          if (prev) { const go = window._origRouterGo || Router.go.bind(Router); go(prev); }
+          else Router.go('screen-mode');
+        } else { Router.go('screen-mode'); }
+      };
+    }
+    _lbFetch();
+  }
+
+  async function _lbFetch() {
+    const tableEl = document.getElementById('lb-table');
+    if (!tableEl) return;
+    tableEl.innerHTML = '<div class="lb-loading">Fetching records…</div>';
+    try {
+      const res = await fetch('/api/leaderboard');
+      if (!res.ok) throw new Error('server');
+      _lbData = await res.json();
+      _lbRender(_lbCategory);
+    } catch(e) {
+      _lbData = null;
+      tableEl.innerHTML = '<div class="lb-offline-note">Offline — leaderboard unavailable.</div>';
+    }
+  }
+
+  function _lbRender(cat) {
+    _lbCategory = cat;
+    const tableEl = document.getElementById('lb-table');
+    if (!tableEl) return;
+    if (!_lbData) { tableEl.innerHTML = '<div class="lb-offline-note">Offline — leaderboard unavailable.</div>'; return; }
+    const rows = _lbData[cat] || [];
+    if (!rows.length) { tableEl.innerHTML = '<div class="lb-empty">No records yet. Be the first to conquer the circuit.</div>'; return; }
+    const syms = ['♔', '♕', '♖'];
+    let html = `<div class="lb-col-headers">
+      <div class="lb-col-hdr">#</div>
+      <div class="lb-col-hdr">Player</div>
+      <div class="lb-col-hdr">Agent</div>
+      <div class="lb-col-hdr">Hands</div>
+    </div>`;
+    rows.forEach((entry, i) => {
+      const r = i + 1;
+      const rc = r <= 3 ? 'lb-rank-' + r : '';
+      const isOwn = _lbPlayerName && entry.name === _lbPlayerName;
+      const rd = r <= 3 ? syms[r-1] : `<span class="lb-rank-num">${r}</span>`;
+      const ds = entry.date ? new Date(entry.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '';
+      const ag = entry.agent || 'SHADDAI';
+      html += `<div class="lb-row ${rc} ${isOwn ? 'lb-own' : ''}">
+        <div class="lb-rank">${rd}</div>
+        <div class="lb-name-cell"><span class="lb-name">${_esc(entry.name||'—')}</span><span class="lb-date">${ds}</span></div>
+        <div class="lb-agent-cell">
+          <img class="lb-agent-portrait" src="assets/agents/${ag}.png" alt="${ag}" onerror="this.style.display='none'">
+          <span class="lb-agent-name">${ag}</span>
+        </div>
+        <div class="lb-hands-cell">${entry.hands||'—'}<span class="lb-hands-label">hands</span></div>
+      </div>`;
+    });
+    tableEl.innerHTML = html;
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function submitRun(name, handsThisRun, usedLoanEver, agent) {
+    _lbPlayerName = name;
+    try {
+      await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, hands: handsThisRun, usedLoan: usedLoanEver, agent }),
+      });
+    } catch(e) { /* offline */ }
+  }
+
+  window.switchLbTab = function(cat, btn) {
+    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _lbRender(cat);
+  };
+
+  window.refreshLeaderboard = function() { _lbFetch(); };
+
+  return { show, submitRun, setPlayerName: (n) => { _lbPlayerName = n; } };
+})();
+
+window.Leaderboard = Leaderboard;
+
+// ── WIN SUBMIT FLOW ───────────────────────────────────────────
+const WinSubmit = (() => {
+  function show(handsThisRun, usedLoanEver, agent) {
+    const overlay = document.getElementById('win-submit-overlay');
+    if (!overlay) return;
+    const subEl = document.getElementById('win-submit-sub');
+    if (subEl) {
+      const loanNote = usedLoanEver ? ' (Fat Tony funded your rise)' : ' (Purist run — no loans)';
+      subEl.textContent = handsThisRun + ' hands to conquer all five cities' + loanNote + '. Enter your name for the Hall of Legends.';
+    }
+    overlay.style.display = 'flex';
+    _confetti();
+
+    const submitBtn = document.getElementById('btn-win-submit');
+    const skipBtn   = document.getElementById('btn-win-skip');
+    const nameInput = document.getElementById('win-submit-name');
+    const statusEl  = document.getElementById('win-submit-status');
+    if (nameInput) nameInput.value = '';
+    if (statusEl) statusEl.style.display = 'none';
+
+    if (submitBtn) {
+      // Clone to clear old listeners
+      const fresh = submitBtn.cloneNode(true);
+      submitBtn.parentNode.replaceChild(fresh, submitBtn);
+      fresh.onclick = async () => {
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) { _wsStatus('Enter a display name first.', 'err'); return; }
+        fresh.disabled = true;
+        _wsStatus('Submitting…', '');
+        await Leaderboard.submitRun(name, handsThisRun, usedLoanEver, agent);
+        Leaderboard.setPlayerName(name);
+        _wsStatus('On the board! ✓', 'ok');
+        Audio.bj();
+        setTimeout(() => { _close(overlay); Leaderboard.show('screen-mode'); }, 1500);
+      };
+    }
+    if (skipBtn) {
+      const sf = skipBtn.cloneNode(true);
+      skipBtn.parentNode.replaceChild(sf, skipBtn);
+      sf.onclick = () => { _close(overlay); Leaderboard.show('screen-mode'); };
+    }
+  }
+
+  function _wsStatus(msg, type) {
+    const el = document.getElementById('win-submit-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'win-submit-status ' + (type || '');
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function _confetti() {
+    const container = document.getElementById('win-submit-confetti');
+    if (!container) return;
+    container.innerHTML = '';
+    const colors = ['#c9a84c','#f0c84a','#00e5ff','#e03040','#4ade80','#a855f7'];
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.cssText = 'left:' + Math.random()*100 + '%;background:' + colors[Math.floor(Math.random()*colors.length)] +
+        ';animation-duration:' + (1.5+Math.random()*2.5) + 's;animation-delay:' + (Math.random()*0.8) + 's;' +
+        'width:' + (4+Math.random()*6) + 'px;height:' + (4+Math.random()*6) + 'px;' +
+        'border-radius:' + (Math.random()>0.5?'50%':'1px') + ';';
+      container.appendChild(p);
+    }
+  }
+
+  function _close(overlay) {
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  return { show };
+})();
+
+window.WinSubmit = WinSubmit;
+
 // ── BOOT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Init splash skyline
@@ -1658,4 +2042,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal-overlay')) closeModal();
   });
+
+  // Vault + Leaderboard entry points
+  document.getElementById('btn-splash-vault')?.addEventListener('click', () => { Audio.chip(); Vault.open('save'); });
+  document.getElementById('btn-splash-lb')?.addEventListener('click',   () => { Audio.chip(); Leaderboard.show('screen-splash'); });
+  document.getElementById('btn-mode-vault')?.addEventListener('click',  () => { Audio.chip(); Vault.open('save'); });
+  document.getElementById('btn-mode-lb')?.addEventListener('click',     () => { Audio.chip(); Leaderboard.show('screen-mode'); });
 });
